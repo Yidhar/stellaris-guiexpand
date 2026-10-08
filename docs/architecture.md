@@ -75,6 +75,19 @@ comparison of ImGui's window, group, colour, style-var and font stacks (extra en
 count of faults per panel (three disable it). `docs/developers.md` has the table. The wrapper function holds no C++ objects with destructors (SEH and C++ unwinding do not
 mix in one function).
 
+## Elements, the theme and HUDs
+
+Plugins register named elements (`register_element`). The declaration renderer hands every entry that is not one of its ten own to the registry (`DrawElement`), with the protection of a panel:
+SEH around the call, ImGui's stacks restored, the code address checked with `VirtualQuery`, three faults disable the element (the panel then shows `[name: disabled]`). An element reads its entry through
+opaque node handles (`StlGuiNodeApi`, over the parsed `SNode` tree); `draw_block` / `draw_row` / `draw_node` re-enter the renderer, so containers nest (depth-limited). A name nobody registered becomes a
+dim note and one log line, with the plugin ids from the file's `stl_gui_requires`.
+
+The player's **theme** (two accent colours of four palettes, and the constant text, good / bad / warn and panel colours) lives in the host and is handed to every callback, so that skins and components
+share it. `get_history` serves the per-game-day series the host keeps (resource stocks and nets, 160 days) and its own frame-time and tick-rate series.
+
+A declared panel with `kind = hud` is an undecorated, background-less window of a fixed size at a screen anchor (padding and border are pushed before the stack mark: they are the host's to pop); `hotkey`
+is polled once a frame with `GetAsyncKeyState` while the game window is the foreground window, and `open = no` starts a panel hidden.
+
 ## Declared panels
 
 At the first moment a game runs (and on `scan`), stellaris-guiexpand reads `dlc_load.json`, resolves each enabled `mod/*.mod` to its folder through `path=`, and parses

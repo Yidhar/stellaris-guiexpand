@@ -95,6 +95,7 @@ struct DeclPanel {
     std::string mod, id, title_key;
     SNode content;
     float w = 360, h = 300;
+    std::vector<std::string> requires_;  // stl_gui_requires: plugin ids whose elements the file uses (only for the message of a missing element)
 };
 std::vector<std::shared_ptr<DeclPanel>> g_decl;  // referenced by the panels' user pointer: kept for the process lifetime
 
@@ -155,6 +156,10 @@ void ScanMods() {
                 Log("mod %s: %s: no stl_gui_version = 1, file ignored", mod.c_str(), fname.c_str());
                 continue;
             }
+            std::vector<std::string> requires_all;
+            if (const SNode* rq = ChildOf(root, "stl_gui_requires"))
+                for (const SNode& r : rq->kids)
+                    if (!r.block && !r.value.empty()) requires_all.push_back(r.value);
             for (const SNode& k : root.kids) {
                 if (k.key != "panel" || !k.block) continue;
                 auto d = std::make_shared<DeclPanel>();
@@ -166,6 +171,7 @@ void ScanMods() {
                     d->w = (float)atof(sz->kids[0].value.c_str());
                     d->h = (float)atof(sz->kids[1].value.c_str());
                 }
+                d->requires_ = requires_all;
                 if (d->id.empty()) {
                     Log("mod %s: %s: a panel without id, ignored", mod.c_str(), fname.c_str());
                     continue;
@@ -184,6 +190,27 @@ void ScanMods() {
                 opts.title_is_loc = true;
                 opts.w = d->w;
                 opts.h = d->h;
+                // kind = window (default) | hud, anchor, offset = { x y }, hotkey, open = yes | no
+                const std::string kind = ValOf(k, "kind", "window");
+                if (kind == "hud") opts.hud = true;
+                else if (kind != "window") Log("mod %s: %s: panel %s: unknown kind '%s', shown as a window", mod.c_str(), fname.c_str(), d->id.c_str(), kind.c_str());
+                if (opts.hud) {
+                    const std::string an = ValOf(k, "anchor", "center");
+                    opts.anchor = ParseAnchor(an);
+                    if (opts.anchor < 0) {
+                        Log("mod %s: %s: panel %s: unknown anchor '%s', centred", mod.c_str(), fname.c_str(), d->id.c_str(), an.c_str());
+                        opts.anchor = ANCHOR_CENTER;
+                    }
+                    if (const SNode* off = ChildOf(k, "offset"); off && off->kids.size() >= 2) {
+                        opts.ox = (float)atof(off->kids[0].value.c_str());
+                        opts.oy = (float)atof(off->kids[1].value.c_str());
+                    }
+                }
+                if (const std::string hk = ValOf(k, "hotkey"); !hk.empty()) {
+                    opts.hotkey = ParseHotkey(hk);
+                    if (!opts.hotkey) Log("mod %s: %s: panel %s: '%s' is not a hot key (like ctrl+shift+g, f9)", mod.c_str(), fname.c_str(), d->id.c_str(), hk.c_str());
+                }
+                opts.open = ValOf(k, "open", "yes") != "no";
                 if (RegisterPanelInternal(desc, opts)) ++panels;
             }
         } while (FindNextFileW(h, &fd));
@@ -211,6 +238,10 @@ const EffCache& EffState(const std::string& key) {  // the engine's verdict on a
     return e;
 }
 
+const StlGuiCallbackCtx* g_ctx = nullptr;     // the callback context of the declared panel being drawn
+const DeclPanel* g_cur_panel = nullptr;
+int g_elem_depth = 0;                         // nesting of containers (an element drawing blocks that hold elements ...)
+
 void DrawDeclNode(const SNode& n, int depth);
 void DrawDeclBlock(const SNode& block, bool row, int depth) {
     bool first = true;
@@ -231,6 +262,24 @@ double StatValue(const std::string& stat, bool* known) {
     *known = false;
     return 0;
 }
+// an entry that is not one of the host's: an element a plugin registered, or a note that there is none
+void DrawUnknown(const SNode& n) {
+    if (n.key.empty()) return;
+    const ElementResult r = g_ctx ? DrawElement(n.key, (const StlGuiNode*)&n, g_ctx) : ElementResult::NotRegistered;
+    if (r == ElementResult::Drawn) return;
+    if (r == ElementResult::NotRegistered && !n.block) return;  // a plain `key = value` that nobody claims: a parameter of the entry around it
+    std::string need = "not installed";
+    if (g_cur_panel && !g_cur_panel->requires_.empty()) {
+        need = "needs ";
+        for (size_t i = 0; i < g_cur_panel->requires_.size(); ++i) need += (i ? ", " : "") + g_cur_panel->requires_[i];
+    }
+    ImGui::TextDisabled("[%s: %s]", n.key.c_str(), r == ElementResult::Disabled ? "disabled" : need.c_str());
+    static std::unordered_set<std::string> said;
+    if (said.insert((g_cur_panel ? g_cur_panel->mod + ":" + g_cur_panel->id : std::string()) + "/" + n.key).second)
+        Log("panel %s: element '%s' is %s", g_cur_panel ? (g_cur_panel->mod + ":" + g_cur_panel->id).c_str() : "?", n.key.c_str(),
+            r == ElementResult::Disabled ? "disabled (it faulted three times)" : ("not registered (" + need + ")").c_str());
+}
+
 void DrawDeclNode(const SNode& n, int depth) {
     if (depth > 10) return;
     if (n.key == "row" && n.block) {
@@ -286,20 +335,88 @@ void DrawDeclNode(const SNode& n, int depth) {
         if (!e.valid) ImGui::EndDisabled();
         if (!e.valid && !e.reason.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", e.reason.c_str());
         if (clicked && e.valid) g_pending.push_back({ Pending::Button, 0, effect });
+    } else {
+        DrawUnknown(n);
     }
 }
-void DrawDeclPanel(const StlGuiCallbackCtx*, void* user) {
+// ---- the accessors a registered element reads its declaration with (StlGuiNodeApi)
+const SNode& NodeOf(const StlGuiNode* n) {
+    static const SNode empty;
+    return n ? *(const SNode*)n : empty;
+}
+const char* NodeKey(const StlGuiNode* n) { return NodeOf(n).key.c_str(); }
+int NodeIsBlock(const StlGuiNode* n) { return NodeOf(n).block ? 1 : 0; }
+const char* NodeSelfValue(const StlGuiNode* n) { return NodeOf(n).value.c_str(); }
+const char* NodeValue(const StlGuiNode* n, const char* key, const char* def) {
+    const SNode* c = key ? ChildOf(NodeOf(n), key) : nullptr;
+    return c && !c->block ? c->value.c_str() : def;
+}
+double NodeNumber(const StlGuiNode* n, const char* key, double def) {
+    const char* v = NodeValue(n, key, nullptr);
+    return v ? atof(v) : def;
+}
+const StlGuiNode* NodeChild(const StlGuiNode* n, const char* key) { return key ? (const StlGuiNode*)ChildOf(NodeOf(n), key) : nullptr; }
+uint32_t NodeChildCount(const StlGuiNode* n) { return (uint32_t)NodeOf(n).kids.size(); }
+const StlGuiNode* NodeChildAt(const StlGuiNode* n, uint32_t i) {
+    const SNode& b = NodeOf(n);
+    return i < b.kids.size() ? (const StlGuiNode*)&b.kids[i] : nullptr;
+}
+const char* NodeText(const StlGuiNode* n, const char* key, const char* def) {
+    static std::string ring[16];  // a text stays valid for the next 15 calls
+    static unsigned slot = 0;
+    const char* v = NodeValue(n, key, nullptr);
+    if (!v) return def;
+    std::string& out = ring[slot++ & 15];
+    out = LocScoped(v);
+    return out.c_str();
+}
+void NodeDrawBlock(const StlGuiNode* b) {
+    if (!b || g_elem_depth > 12) return;
+    ++g_elem_depth;
+    DrawDeclBlock(NodeOf(b), false, 0);
+    --g_elem_depth;
+}
+void NodeDrawRow(const StlGuiNode* b) {
+    if (!b || g_elem_depth > 12) return;
+    ++g_elem_depth;
+    DrawDeclBlock(NodeOf(b), true, 0);
+    --g_elem_depth;
+}
+void NodeDrawNode(const StlGuiNode* n) {
+    if (!n || g_elem_depth > 12) return;
+    ++g_elem_depth;
+    DrawDeclNode(NodeOf(n), 0);
+    --g_elem_depth;
+}
+const StlGuiNodeApi g_node_api = { sizeof(StlGuiNodeApi), 0, NodeKey, NodeIsBlock, NodeSelfValue, NodeValue, NodeNumber, NodeChild, NodeChildCount,
+                                   NodeChildAt, NodeText, NodeDrawBlock, NodeDrawRow, NodeDrawNode };
+
+void DrawDeclPanel(const StlGuiCallbackCtx* ctx, void* user) {
     const DeclPanel* d = (const DeclPanel*)user;
     if (!g_snap.in_game) {
         ImGui::TextDisabled("not in a game");
         return;
     }
+    g_ctx = ctx;
+    g_cur_panel = d;
+    g_elem_depth = 0;
     DrawDeclBlock(d->content, false, 0);
+    g_ctx = nullptr;
+    g_cur_panel = nullptr;
 }
 
 bool g_rescan = false;
 
 }  // namespace
+
+const StlGuiNodeApi* DeclNodeApi() { return &g_node_api; }
+
+bool IsBuiltinElement(const std::string& name) {
+    static const char* const kNames[] = { "text", "separator", "spacer", "date", "value", "gauge", "stat", "badge", "button", "row" };
+    for (const char* n : kNames)
+        if (name == n) return true;
+    return false;
+}
 
 void RequestRescan() { g_rescan = true; }
 

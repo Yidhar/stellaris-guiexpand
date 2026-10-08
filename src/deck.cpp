@@ -32,18 +32,13 @@ std::string ButtonTitle(const std::string& key) {
 }
 
 bool g_deck_open = false, g_hud_open = true, g_stars = true;
-int g_tab = 0, g_theme = 0, g_sel_res = 0;
-std::deque<float> g_frame_ms, g_tick_rate;
+int g_tab = 0, g_sel_res = 0;  // the theme and the frame series are the host's (core.cpp)
 std::unordered_map<std::string, float> g_anim;
 
 float Smooth(const char* key, float target, float rate = 12.f) {
     auto it = g_anim.try_emplace(key, target).first;
     it->second += (target - it->second) * (1.f - expf(-rate * g_DT));
     return it->second;
-}
-void Push(std::deque<float>& d, float v, size_t cap) {
-    d.push_back(v);
-    while (d.size() > cap) d.pop_front();
 }
 
 void EvalButtons() {
@@ -59,17 +54,7 @@ void EvalButtons() {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------- style
-struct Theme {
-    ImU32 a, b;
-    const char* name;
-};
 #define C(r, g, b, a) IM_COL32(r, g, b, a)
-const Theme kThemes[] = {
-    { C(0, 229, 200, 255), C(150, 100, 255, 255), "极光  AURORA" },
-    { C(255, 184, 64, 255), C(255, 90, 160, 255), "余烬  EMBER" },
-    { C(90, 235, 150, 255), C(60, 170, 255, 255), "翡翠  VERDANT" },
-    { C(255, 100, 110, 255), C(255, 214, 90, 255), "赤焰  CRIMSON" },
-};
 ImU32 Acc() { return kThemes[g_theme].a; }
 ImU32 Acc2() { return kThemes[g_theme].b; }
 ImU32 Al(ImU32 c, float a) {
@@ -967,23 +952,11 @@ void Frame(const ImGuiIO& io) {
     static bool init = false;
     if (!init) {
         init = true;
-        g_theme = g_cfg.theme;
         g_stars = g_cfg.stars;
         g_deck_open = g_cfg.deck_open;
     }
     if (g_hud_open) DrawHud(io);
     if (g_deck_open) DrawDeck(io);
-}
-
-void FrameStats(float frame_ms, LONG64 ticks) {
-    Push(g_frame_ms, frame_ms, 120);
-    static LONG64 last_ticks = 0;
-    static double last_t = 0;
-    if (g_T - last_t >= 0.5) {
-        Push(g_tick_rate, (float)((ticks - last_ticks) / (g_T - last_t)), 120);
-        last_ticks = ticks;
-        last_t = g_T;
-    }
 }
 
 void Toggle() {

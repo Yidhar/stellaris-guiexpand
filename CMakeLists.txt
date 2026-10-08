@@ -81,7 +81,12 @@ if (GUIEXPAND_BUILD_EXAMPLES)
     target_include_directories(example_c PRIVATE include include/stellaris_guiexpand)
     target_compile_definitions(example_c PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 
-    foreach(t example_imgui example_imgui_badcfg example_c)
+    # a plugin that registers elements for declared panels (a component library in small): plain C
+    add_library(example_element SHARED examples/element/example_element.c)
+    target_include_directories(example_element PRIVATE include include/stellaris_guiexpand)
+    target_compile_definitions(example_element PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
+
+    foreach(t example_imgui example_imgui_badcfg example_c example_element)
         set_target_properties(${t} PROPERTIES PREFIX "")
     endforeach()
     if (MSVC)

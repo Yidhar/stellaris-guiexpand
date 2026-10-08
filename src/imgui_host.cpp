@@ -157,9 +157,10 @@ void Frame() {
     g_DT = std::clamp(io.DeltaTime, 0.001f, 0.1f);
     g_fit = std::clamp(std::min(io.DisplaySize.x / (1230.f * g_S0), io.DisplaySize.y / (840.f * g_S0)), 0.55f, 1.f);
     g_S = g_S0 * g_fit;
-    deck::FrameStats(io.DeltaTime * 1000.f, g_ticks);
+    FrameStats(io.DeltaTime * 1000.f, g_ticks);
     if (g_cfg.dev_commands) PollCommandFile();
     PollHotkey();
+    PollPanelHotkeys();
     if (g_tick_depth == 0) {
         RunPending();
         static LONG64 last_frame = 0;

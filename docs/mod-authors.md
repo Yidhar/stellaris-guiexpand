@@ -53,6 +53,18 @@ panel = {
 
 A file can hold several `panel`s and your mod several files. Two panels with the same id in one mod: the first is kept, the second is rejected and logged.
 
+More keys of a `panel`:
+
+| Key | |
+|---|---|
+| `kind = hud` | not a window but a **HUD**: no title bar, no background, not movable, placed by `anchor` and `offset`, sized by `size` (default `kind = window`) |
+| `anchor = ...` | for a HUD: `top_left`, `top_center`, `top_right`, `left_center`, `center`, `right_center`, `bottom_left`, `bottom_center`, `bottom_right` |
+| `offset = { x y }` | for a HUD: the distance in pixels inward from the anchored edge(s) (from the centre line when centred) |
+| `hotkey = "ctrl+shift+g"` | a key that shows / hides the panel while the game window has the focus: `ctrl`, `shift`, `alt` and a letter, a digit, `f1` .. `f12`, `space`, `tab`, `enter`, `esc`. Do not use `ctrl+shift` combinations on a machine that switches the keyboard layout with them |
+| `open = no` | the panel starts hidden (default `yes`) |
+
+Next to `stl_gui_version`, a file can say `stl_gui_requires = { some-plugin-id }`: the plugins whose elements the file uses (see below). It only improves the message when one is missing.
+
 ### Elements
 
 | Element | Shows | Fields |
@@ -67,8 +79,36 @@ A file can hold several `panel`s and your mod several files. Two panels with the
 | `badge` | a coloured yes/no | `probe` (a button effect), `yes` / `no` (loc keys) |
 | `button` | a button that runs an effect | `text` (loc key), `effect` (a key of your `common/button_effects`) |
 | `row` | puts its `button`s side by side | the elements |
+| *anything else* | an **element of a plugin** (below) | the plugin documents them |
 
 The numbers are those of the **player's country**, taken between turn ticks.
+
+### Elements of plugins: components
+
+Plugins can register more elements. A component library (a plugin that registers `card`, `tabs`, `ring`, `chart` ...) is used like the built-in ones, with the same syntax, so a panel can look like
+more than a column of standard widgets. The plugin documents its elements and its plugin id; you list the id in `stl_gui_requires` so that the player is told what is missing:
+
+```
+stl_gui_version = 1
+stl_gui_requires = { some-component-plugin }
+
+panel = {
+    id = status
+    title = MYMOD_TITLE
+    content = {
+        card = {                                          # an element of the plugin
+            title = MYMOD_CARD
+            content = {                                   # what the card shows: the host draws it, built-in and plugin elements alike
+                ring = { resource = energy }              # another element of the plugin
+                value = { label = MYMOD_ENERGY  resource = energy  show = net }
+            }
+        }
+    }
+}
+```
+
+When the plugin is not installed, the element is replaced by a dim note, `[card: needs some-component-plugin]`, and the log says it once; the elements around it still work. An element that crashes
+three times is disabled the same way (`[card: disabled]`).
 
 ### Buttons and the engine's own checks
 
@@ -162,7 +202,8 @@ File-level mistakes are written to stellaris-guiexpand's log (`logs\stellaris_gu
 | a syntax error (unbalanced braces...) | the whole file is ignored; the log names the file |
 | no `stl_gui_version = 1` | the file is ignored; logged |
 | a panel without `id`, or a second panel with an id already used in the mod | that panel is ignored; logged |
-| an unknown element or key | skipped **silently**, so an older stellaris-guiexpand can read part of a newer file; check your spelling |
+| an unknown element (a block nobody registered) | a dim note `[name: needs ...]` in the panel and one line in the log; check your spelling |
+| an unknown plain `key = value` | skipped silently (it may be a parameter of the entry around it) |
 | an unknown `effect` (button) | the button is shown disabled |
 | an unknown `stat` or `resource` | the value is shown as `?` |
 

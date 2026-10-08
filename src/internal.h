@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "imgui.h"
@@ -170,6 +171,18 @@ extern ImGuiContext* g_fonts_ctx;           // the context the fonts above belon
 ImFont* F(ImFont* f);                       // f, or ImGui's current font when f is not usable (no fonts of ours in this context)
 void Fmt(char* out, size_t n, double v, bool sign = false);  // 12.3k, 4.5M, +7.0
 
+// The player's theme: two accent colours per theme, shared with every skin and component through the interface (core.cpp).
+struct ThemeDef {
+    ImU32 a, b;
+    const char* name;
+};
+constexpr int kThemeCount = 4;
+extern const ThemeDef kThemes[kThemeCount];
+extern int g_theme;                                // the current one (settings: theme=)
+extern std::deque<float> g_frame_ms, g_tick_rate;  // the host's own series ("@frame_ms", "@tick_rate" of get_history)
+void FrameStats(float frame_ms, LONG64 ticks);     // once per frame
+int HistorySeries(const char* series, float* out, uint32_t cap);  // get_history: resource stock, "<resource>.net", "@frame_ms", "@tick_rate"
+
 // -------------------------------------------------------------------------------------------------------------------- localisation (loc.cpp)
 std::string LocKey(const std::string& key);  // a loc key through the game's localisation; text with a space, or an unknown key, as written
 // Like LocKey, but the text may contain [Root.some_variable], [Root.GetName] or a scripted_loc, which the engine evaluates for the player's country.
@@ -182,13 +195,30 @@ struct PanelOptions {
     bool decl = false;           // declared by a mod, not registered by a plugin
     bool title_is_loc = false;   // the title is a loc key
     float w = 360, h = 280;      // first size, in layout pixels
+    bool open = true;            // shown at the start
+    bool hud = false;            // an undecorated window anchored to a screen edge, sized w x h (kind = hud)
+    int anchor = 0;              // ANCHOR_* below, for a hud
+    float ox = 0, oy = 0;        // distance from the anchored edge(s), in layout pixels
+    uint32_t hotkey = 0;         // HK_* modifiers | virtual key << 8, 0 for none
 };
+enum { ANCHOR_TOP_LEFT, ANCHOR_TOP_CENTER, ANCHOR_TOP_RIGHT, ANCHOR_LEFT_CENTER, ANCHOR_CENTER, ANCHOR_RIGHT_CENTER, ANCHOR_BOTTOM_LEFT,
+       ANCHOR_BOTTOM_CENTER, ANCHOR_BOTTOM_RIGHT };
+enum { HK_CTRL = 1, HK_SHIFT = 2, HK_ALT = 4 };
+uint32_t ParseHotkey(const std::string& s);               // "ctrl+shift+g" -> modifiers | vk << 8; 0 when it is not a hot key
+int ParseAnchor(const std::string& s);                    // -1 when unknown
+void PollPanelHotkeys();                                  // once per frame: toggles the panels whose hot key was just pressed
 int RegisterPanelInternal(const StlGuiPanelDesc& d, const PanelOptions& o);
 void RetirePanels(bool declared_only);
 void DispatchPanels();                                      // from the frame, main thread
 void PanelCommand(const char* id, int visible);             // development: "list" logs them, else shows / hides the panel
 void DispatchStats(double* us_per_frame, long long* frames);
 const StlGuiApi* HostApi();
+// Elements registered by plugins (host_api.cpp), drawn for the declared entries that are not the host's own (decl_panels.cpp).
+enum class ElementResult { NotRegistered, Drawn, Disabled };
+ElementResult DrawElement(const std::string& name, const StlGuiNode* node, const StlGuiCallbackCtx* ctx);
+std::string ElementProvider(const std::string& name);     // the plugin id the element was registered with ("" when none)
+const StlGuiNodeApi* DeclNodeApi();                       // decl_panels.cpp: the accessors elements read their declaration with
+bool IsBuiltinElement(const std::string& name);           // text separator spacer date value gauge stat badge button row
 
 // ------------------------------------------------------------------------------------------------------- mod-declared panels (decl_panels.cpp)
 void RequestRescan();
@@ -197,7 +227,6 @@ void UpdateDeclPanels();  // scans the enabled mods once a game runs, and again 
 // ----------------------------------------------------------------------------------------------------------- the Command Deck skin (deck.cpp)
 namespace deck {
 void Frame(const ImGuiIO& io);                 // draws the capsule and the deck (when enabled), inside the host's style
-void FrameStats(float frame_ms, LONG64 ticks); // once per frame, for the time page's graphs
 void Toggle();                                 // the hot key
 bool Command(const char* cmd, int value);      // development commands: deck hud tab theme res eval; true when handled
 void Dump();                                   // development: log the state

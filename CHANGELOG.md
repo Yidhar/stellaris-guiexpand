@@ -2,6 +2,15 @@
 
 ## 0.1.0 (unreleased)
 
+Added on the way to the component library (`stellaris-argon-ui`), all append-only in the interface:
+
+- **Elements**: `register_element` / `unregister_element` and the node accessors (`StlGuiNodeApi`): a plugin registers named elements that declarations use like the host's own, containers draw their
+  content through the host, with the protection of a panel (three faults disable an element). A missing element is a dim note and a log line (`stl_gui_requires` names what to install).
+- **Theme** shared by everything (`ctx->theme`, `theme_info`, `set_theme`), more in the callback context (`ui_scale`, `fit`, `delta_time`, `time`, `font_title`, `font_numbers_large`), snapshot
+  appended with income / expense, the countries' figures and the galaxy's strongest values, `get_history`, `panel_visibility`.
+- **Declared panels**: `kind = hud` with `anchor` / `offset`, `hotkey`, `open = no`.
+- `examples/element`: a plugin with seven elements in plain C; the test mod has a panel and a HUD that use them.
+
 The first version as its own repository. Everything before it was a prototype inside the Stellaris MCP repository (`docs/gui_probe/`).
 
 - The host: starts the engine's Dear ImGui (1.85), adds fonts, draws inside its frame through three hooks (`ImGui::NewFrame`, `NImGuiWrapper::ImGuiInit`,
