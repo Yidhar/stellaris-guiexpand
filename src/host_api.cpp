@@ -16,6 +16,7 @@ struct HostPanel {
     bool title_is_loc = false;
     float w = 360, h = 280;
     bool hud = false;       // an undecorated window anchored to a screen edge
+    bool movable = false;
     int anchor = 0;
     float ox = 0, oy = 0;
     uint32_t hotkey = 0;    // HK_* | vk << 8
@@ -55,6 +56,7 @@ int RegisterCommon(const StlGuiPanelDesc& d, const PanelOptions& o) {
     p->h = o.h;
     p->visible = o.open;
     p->hud = o.hud;
+    p->movable = o.movable;
     p->anchor = o.anchor;
     p->ox = o.ox;
     p->oy = o.oy;
@@ -387,12 +389,13 @@ void DispatchImpl() {
             if (hud) {
                 ImVec2 pos, pivot;
                 AnchorPoint(p->anchor, ImGui::GetIO().DisplaySize, p->ox * g_S, p->oy * g_S, &pos, &pivot);
-                ImGui::SetNextWindowPos(pos, ImGuiCond_Always, pivot);
-                ImGui::SetNextWindowSize(ImVec2(w * g_S, h * g_S), ImGuiCond_Always);
+                const ImVec2 disp = ImGui::GetIO().DisplaySize;
+                ImGui::SetNextWindowPos(pos, p->movable ? ImGuiCond_FirstUseEver : ImGuiCond_Always, pivot);
+                ImGui::SetNextWindowSize(ImVec2(std::min(w * g_S, disp.x - 30.f), std::min(h * g_S, disp.y - 30.f)), ImGuiCond_Always);  // never bigger than the screen
                 shown = ImGui::Begin(name.c_str(), nullptr,
-                                     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar |
-                                         ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
-                                         ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoNav);
+                                     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | (p->movable ? 0 : ImGuiWindowFlags_NoMove) |
+                                         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoCollapse |
+                                         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoNav);
             } else {
                 ImGui::SetNextWindowSize(ImVec2(w * g_S, h * g_S), ImGuiCond_FirstUseEver);
                 ImGui::SetNextWindowPos(ImVec2((30.f + 400.f * (float)((p->handle - 1) % 3)) * g_S, (120.f + 40.f * (float)((p->handle - 1) / 3)) * g_S), ImGuiCond_FirstUseEver);

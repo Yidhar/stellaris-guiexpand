@@ -90,9 +90,6 @@ Config g_cfg;
 void LoadConfig() {
     const std::wstring ini = PluginDir() + L"config\\stellaris_guiexpand.ini";
     auto flag = [&](const wchar_t* key, bool def) { return GetPrivateProfileIntW(L"guiexpand", key, def ? 1 : 0, ini.c_str()) != 0; };
-    g_cfg.deck = flag(L"deck", true);
-    g_cfg.deck_open = flag(L"deck_open", false);
-    g_cfg.stars = flag(L"stars", true);
     g_cfg.theme = std::clamp((int)GetPrivateProfileIntW(L"guiexpand", L"theme", 0, ini.c_str()), 0, kThemeCount - 1);
     g_theme = g_cfg.theme;
     g_cfg.dev_commands = flag(L"dev_commands", false);
@@ -604,7 +601,6 @@ bool RunButtonEffect(const char* key, bool post, bool* valid, std::string* reaso
     return true;
 }
 
-std::deque<ScriptLogEntry> g_script_log;
 std::vector<Pending> g_pending;
 
 // ----------------------------------------------------------------------------------------------------------------- runtime state
@@ -640,39 +636,16 @@ void RunPending() {
             Log("pause -> %d", p.ival);
             break;
         case Pending::Button: {
-            ScriptLogEntry e;
-            e.key = p.key;
-            e.title = p.key;
-            e.time = g_T;
-            e.tick_posted = g_ticks;
-            e.serial_posted = g_snap_serial;
-            g_force_snapshot_frame = g_frames_total + 8;
-            if (const ResInfo* en = FindRes("energy")) {
-                e.energy_before = en->stock;
-                e.energy_known = true;
-            }
+            g_force_snapshot_frame = g_frames_total + 8;  // look again soon: the command changes the state
             bool valid = false;
             std::string why;
-            bool ok = RunButtonEffect(p.key.c_str(), true, &valid, &why);
-            e.ok = ok;
-            e.result = why;
-            e.done = !ok;  // a posted command is finished once a tick has run
+            const bool ok = RunButtonEffect(p.key.c_str(), true, &valid, &why);
             Log("button %s: posted=%d valid=%d '%s'", p.key.c_str(), (int)ok, (int)valid, why.c_str());
-            g_script_log.push_front(std::move(e));
-            while (g_script_log.size() > 12) g_script_log.pop_back();
             break;
         }
         }
     }
     g_pending.clear();
-}
-
-void CompleteScriptLog() {
-    for (auto& e : g_script_log)
-        if (e.ok && !e.done && g_snap.serial > e.serial_posted) {
-            e.done = true;
-            if (const ResInfo* en = FindRes("energy")) e.energy_after = en->stock;
-        }
 }
 
 }  // namespace guiexpand

@@ -2,6 +2,10 @@
 
 ## 0.1.0 (unreleased)
 
+The Command Deck (a status capsule and a five-page window) that the first prototype drew itself is **not part of the host any more**: it is rebuilt from declarations with the
+components of stellaris-argon-ui (`examples/command-deck` in that repository), which shows that a mod can do it without a DLL. The host keeps only what a component needs:
+the theme, the data, the registry.
+
 Added on the way to the component library (`stellaris-argon-ui`), all append-only in the interface:
 
 - **Elements**: `register_element` / `unregister_element` and the node accessors (`StlGuiNodeApi`): a plugin registers named elements that declarations use like the host's own, containers draw their
@@ -19,7 +23,6 @@ The first version as its own repository. Everything before it was a prototype in
   and a C drawing table for plugins without ImGui. Helper headers for finding the host and for binding a plugin's own ImGui (with a layout check).
 - Fault isolation for plugin panels: exceptions, unbalanced ImGui stacks, unloaded code, mismatched ImGui configuration.
 - Panels declared by mods in `interface/stl_gui/*.txt` (`stl_gui_version = 1`).
-- The reference skin: status capsule and Command Deck (overview, economy, time, script, settings; four themes).
 - Plugin of the Stellaris launcher (manifest schema 2, settings in `config\stellaris_guiexpand.ini`), built for the `stellaris.exe` with PE timestamp `0x6ABEAA3F` (Stellaris 4.5.2).
 - Examples: a plugin with its own ImGui, a plain C plugin.
 - Scoped localisation: every text of a declared panel may contain `[Root.<variable>]`, `[Root.GetName]` or a `scripted_loc` (script values through one), evaluated by the

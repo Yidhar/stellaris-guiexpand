@@ -10,7 +10,8 @@ draws panels inside the game, so that:
 - **mod authors** can describe a panel in a text file inside their mod (`interface/stl_gui/*.txt`, the same script syntax the game uses) and have
   it drawn, with localisation, values that the mod's script computes (variables, `scripted_loc`, script values) and buttons that run the mod's own
   `button_effect`s. No DLL, no programming;
-- **players** get the panels of everything they installed, in one place, plus an optional reference skin: a status capsule and the *Command Deck*.
+- **players** get the panels of everything they installed, in one place. A component library such as [stellaris-argon-ui](https://github.com/Yidhar/stellaris-argon-ui)
+  gives mods a richer vocabulary (cards, rings, charts, tabs, a HUD capsule: the *Command Deck* is built from it) without changing anything here.
 
 It is a plugin of the **Stellaris launcher** (plugin spec v2). It needs no mod and does not touch save files.
 
@@ -51,9 +52,8 @@ It is a plugin of the **Stellaris launcher** (plugin spec v2). It needs no mod a
 3. Enable the plugin in your playset (`stl plugin enable stellaris-guiexpand`, or the launcher's Plugins page).
 4. **Start the game with the Stellaris launcher** (`stl launch`, or its Play button). The launcher waits for the game window and loads the plugin.
    Starting the game from Steam or the Paradox launcher starts it without plugins.
-5. In a game, the status capsule appears at the bottom of the screen. Click its orb or press **Ctrl + Shift + G** to open the Command Deck.
-
-Panels of other plugins and of mods appear as windows on the left of the screen. They can be moved and closed with the usual ImGui controls.
+5. In a game, the panels of other plugins and of mods appear as windows on the left of the screen. They can be moved and closed with the usual ImGui controls; a mod
+   may give its panel a hot key.
 
 ## Settings
 
@@ -61,10 +61,7 @@ Panels of other plugins and of mods appear as windows on the left of the screen.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `deck` | 1 | the reference skin (capsule and Command Deck). `0` = host only: panels of plugins and mods are still drawn |
-| `deck_open` | 0 | open the deck window at start |
-| `theme` | 0 | 0 aurora, 1 ember, 2 verdant, 3 crimson |
-| `stars` | 1 | stars in the deck's background |
+| `theme` | 0 | the player's colour theme at the start: 0 aurora, 1 ember, 2 verdant, 3 crimson. Components read it from the host; a settings page can change it |
 | `extra_mod_dirs` | | folders (separated by `;`) scanned for declared panels besides the mods of the active playset: for developing a mod without enabling it |
 | `dev_commands` | 0 | development: the host runs the lines of `logs\stellaris_guiexpand.cmd` (used by `tools/live/guiexpand_test.py`) |
 | `dev_unload` | 0 | development: unload by an event, so a new build can be tried without restarting. A released plugin must not unload itself |
@@ -75,8 +72,8 @@ The log is `logs\stellaris_guiexpand.log` in the plugin folder. Nothing is writt
 
 ```
 include/stellaris_guiexpand/    the public interface: stellaris_gui_api.h (C), stellaris_gui_client.h (find the host), stellaris_gui_imgui.hpp (own-ImGui binding)
-examples/          cpp_imgui: a plugin with its own ImGui;  c: a plain C plugin
-src/               the host (core, host_api, decl_panels, deck, imgui_host, loc, dllmain)
+examples/          cpp_imgui: a plugin with its own ImGui;  c: a plain C plugin;  element: a plugin that registers elements
+src/               the host (core, host_api, decl_panels, imgui_host, loc, dllmain)
 sdk/               stellaris_sdk.hpp: generated subset (RVAs and offsets for the exe build named in it)
 plugin/            stl-plugin.json and defaults\stellaris_guiexpand.ini
 tools/             build.bat, check_plugin.py, extract_sdk.py, gen_ui_glyphs.py, live/guiexpand_test.py

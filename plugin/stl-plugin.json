@@ -3,7 +3,7 @@
   "id": "stellaris-guiexpand",
   "name": "GUI host",
   "version": "0.1.0",
-  "description": "Draws the panels of other plugins and of mods in the game, with the engine's own Dear ImGui: a C interface for plugins, script-declared panels for mods, and a reference skin (status capsule and deck).",
+  "description": "Draws the panels of other plugins and of mods in the game, with the engine's own Dear ImGui: a C interface for plugins, script-declared panels for mods, and elements that plugins such as component libraries provide for declarations.",
   "dll": "stellaris_guiexpand.dll",
   "game": { "exe_timestamps": ["0x6ABEAA3F"] },
   "load": { "wait": "window", "delay_ms": 1500 },

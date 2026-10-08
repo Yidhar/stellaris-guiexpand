@@ -19,7 +19,6 @@
 | `src/host_api.cpp` | 面板注册表、C 绘制函数表、`StlGui_GetApi`、带故障隔离的分发 |
 | `src/decl_panels.cpp` | 发现 mod、脚本语法的解析器、声明面板的渲染器 |
 | `src/loc.cpp` | 本地化键经引擎的本地化变成显示文字；带 `[Root.xxx]` 的文字经引擎的带作用域文字处理器 |
-| `src/deck.cpp` | 参考皮肤（状态胶囊和 Command Deck）；和任何插件一样，是同一份数据的使用者 |
 | `sdk/stellaris_sdk.hpp` | 生成的；宿主用到的所有引擎地址和偏移 |
 
 ## 三个钩子，没有第四个
@@ -65,10 +64,6 @@
 ## 声明面板
 
 在游戏第一次运行时（以及收到 `scan` 时），stellaris-guiexpand 读 `dlc_load.json`，通过 `path=` 把每个启用的 `mod/*.mod` 解析成它的文件夹，再用一个小的 Paradox 脚本解析器解析 `interface/stl_gui/*.txt`。每个声明面板像插件的面板一样被注册，渲染器每帧遍历解析出来的树。声明唯一能做的就是显示数据和执行一个 `button_effect`：没有表达式语言。
-
-## 参考皮肤
-
-`deck.cpp` 主要用 `ImDrawList` 的调用、而不是 ImGui 自带的控件，画出状态胶囊和 Command Deck，风格和游戏自己的相去甚远。它是同一份快照和脚本通道的一个普通使用者；`deck = 0` 可以把它完全关掉。它是最大的文件，将来可能拆成独立的插件。
 
 ## 游戏更新之后
 

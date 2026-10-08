@@ -41,7 +41,6 @@ add_library(stellaris_guiexpand SHARED
     src/loc.cpp
     src/host_api.cpp
     src/decl_panels.cpp
-    src/deck.cpp
     src/imgui_host.cpp
     src/dllmain.cpp
     ${IMGUI_SOURCES})

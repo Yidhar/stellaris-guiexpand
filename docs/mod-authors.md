@@ -57,7 +57,8 @@ More keys of a `panel`:
 
 | Key | |
 |---|---|
-| `kind = hud` | not a window but a **HUD**: no title bar, no background, not movable, placed by `anchor` and `offset`, sized by `size` (default `kind = window`) |
+| `kind = hud` | not a window but a **HUD**: no title bar, no background, not movable unless `movable = yes`, placed by `anchor` and `offset`, sized by `size` (default `kind = window`). A `size` wider than the screen is shrunk to fit |
+| `movable = yes` | for a HUD: the player can drag it (it starts where `anchor` and `offset` put it and then stays where it was dropped, until the game restarts) |
 | `anchor = ...` | for a HUD: `top_left`, `top_center`, `top_right`, `left_center`, `center`, `right_center`, `bottom_left`, `bottom_center`, `bottom_right` |
 | `offset = { x y }` | for a HUD: the distance in pixels inward from the anchored edge(s) (from the centre line when centred) |
 | `hotkey = "ctrl+shift+g"` | a key that shows / hides the panel while the game window has the focus: `ctrl`, `shift`, `alt` and a letter, a digit, `f1` .. `f12`, `space`, `tab`, `enter`, `esc`. Do not use `ctrl+shift` combinations on a machine that switches the keyboard layout with them |
@@ -189,9 +190,9 @@ translations work like those of any mod. Remember the engine's rule that localis
 
 A value that contains a space, or a key the game does not know, is shown as written.
 
-**Known limitation: characters.** The engine builds its font atlas once, when the ImGui starts, and cannot add glyphs later. stellaris-guiexpand's atlas has the common Chinese
-characters, Latin and the characters of its own UI; a rare character in your texts may show as `?`. A fix (scanning enabled mods' localisation for the characters before
-the atlas is built) is planned.
+**Characters.** The engine builds its font atlas once, when the ImGui starts, and cannot add glyphs later. So stellaris-guiexpand puts into the atlas the common Chinese
+characters, Latin, the characters of its own UI, and **every character of the localisation files (`.yml`) of the mods in the active playset that have an `interface\stl_gui` folder**,
+and of the game's own `concepts*.yml` (the names of resources). A character that exists only in some other mod's texts, or outside the Basic Multilingual Plane (emoji), may still show as `?`.
 
 ## What happens when something is wrong
 

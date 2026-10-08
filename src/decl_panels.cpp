@@ -3,6 +3,8 @@
 // Grammar and the bindings: docs/mod-authors.md.
 #include <shlobj.h>
 
+#include <set>
+
 #include "internal.h"
 
 namespace guiexpand {
@@ -134,6 +136,34 @@ std::vector<std::pair<std::string, std::wstring>> EnabledMods() {
 
 void DrawDeclPanel(const StlGuiCallbackCtx* ctx, void* user);
 
+// the non-ASCII code points of every .yml under `dir` (UTF-8), added to `out`
+void CollectLocChars(const std::wstring& dir, std::set<uint32_t>& out, int depth = 0, const wchar_t* prefix = nullptr) {  // prefix: only files that start with it
+    if (depth > 4) return;
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW((dir + L"\\*").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        const std::wstring name = fd.cFileName;
+        if (name == L"." || name == L"..") continue;
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            CollectLocChars(dir + L"\\" + name, out, depth + 1, prefix);
+        } else if (name.size() > 4 && _wcsicmp(name.c_str() + name.size() - 4, L".yml") == 0 && (!prefix || _wcsnicmp(name.c_str(), prefix, wcslen(prefix)) == 0)) {
+            const std::string text = ReadWholeFile(dir + L"\\" + name);
+            for (size_t i = 0; i < text.size();) {
+                const unsigned char c = (unsigned char)text[i];
+                int n = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 1;
+                if (c >= 0x80 && n > 1 && i + n <= text.size()) {
+                    uint32_t cp = c & (0xFF >> (n + 1));
+                    for (int k = 1; k < n; ++k) cp = (cp << 6) | ((unsigned char)text[i + k] & 0x3F);
+                    if (cp > 0x7F && cp <= 0xFFFF) out.insert(cp);  // ImGui's glyph ids are 16 bits here
+                }
+                i += n;
+            }
+        }
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+}
+
 void ScanMods() {
     RetirePanels(true);  // a rescan replaces what the last one registered
     int files = 0, panels = 0;
@@ -195,6 +225,7 @@ void ScanMods() {
                 if (kind == "hud") opts.hud = true;
                 else if (kind != "window") Log("mod %s: %s: panel %s: unknown kind '%s', shown as a window", mod.c_str(), fname.c_str(), d->id.c_str(), kind.c_str());
                 if (opts.hud) {
+                    opts.movable = ValOf(k, "movable", "no") == "yes";
                     const std::string an = ValOf(k, "anchor", "center");
                     opts.anchor = ParseAnchor(an);
                     if (opts.anchor < 0) {
@@ -408,6 +439,42 @@ void DrawDeclPanel(const StlGuiCallbackCtx* ctx, void* user) {
 bool g_rescan = false;
 
 }  // namespace
+
+std::string ModGlyphText() {
+    std::set<uint32_t> cps;
+    int mods = 0;
+    for (const auto& [mod, dir] : EnabledMods()) {
+        if (GetFileAttributesW((dir + L"\\interface\\stl_gui").c_str()) == INVALID_FILE_ATTRIBUTES) continue;  // only mods that declare panels
+        ++mods;
+        CollectLocChars(dir + L"\\localisation", cps);
+    }
+    // the names the game itself gives things a component shows (a resource's name is in concepts_l_<language>.yml of the game's own localisation)
+    wchar_t exe[MAX_PATH * 2] = {};
+    GetModuleFileNameW(nullptr, exe, (DWORD)std::size(exe));
+    std::wstring game = exe;
+    game.resize(game.find_last_of(L"\\/") + 1);
+    WIN32_FIND_DATAW fd;
+    if (HANDLE h = FindFirstFileW((game + L"localisation\\*").c_str(), &fd); h != INVALID_HANDLE_VALUE) {
+        do {
+            const std::wstring lang = fd.cFileName;
+            if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && lang != L"." && lang != L"..") CollectLocChars(game + L"localisation\\" + lang, cps, 0, L"concepts");
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+    }
+    std::string out;
+    for (uint32_t cp : cps) {  // back to UTF-8 (BMP only)
+        if (cp < 0x800) {
+            out += (char)(0xC0 | (cp >> 6));
+            out += (char)(0x80 | (cp & 0x3F));
+        } else {
+            out += (char)(0xE0 | (cp >> 12));
+            out += (char)(0x80 | ((cp >> 6) & 0x3F));
+            out += (char)(0x80 | (cp & 0x3F));
+        }
+    }
+    Log("glyphs: %zu characters from the localisation of %d mod(s) that declare panels and the game's concept names", cps.size(), mods);
+    return out;
+}
 
 const StlGuiNodeApi* DeclNodeApi() { return &g_node_api; }
 

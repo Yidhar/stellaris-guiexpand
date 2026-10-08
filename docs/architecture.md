@@ -22,7 +22,6 @@ creates no window or swap chain.
 | `src/host_api.cpp` | the panel registry, the C drawing table, `StlGui_GetApi`, dispatch with fault isolation |
 | `src/decl_panels.cpp` | mod discovery, the script-syntax parser, the renderer of declared panels |
 | `src/loc.cpp` | loc key to display text through the engine's localisation; texts with `[Root.xxx]` through the engine's scoped text processor |
-| `src/deck.cpp` | the reference skin (capsule and Command Deck); a consumer of the same data as any plugin |
 | `sdk/stellaris_sdk.hpp` | generated; every engine address and offset the host uses |
 
 ## Three hooks, and not the fourth
@@ -93,11 +92,6 @@ is polled once a frame with `GetAsyncKeyState` while the game window is the fore
 At the first moment a game runs (and on `scan`), stellaris-guiexpand reads `dlc_load.json`, resolves each enabled `mod/*.mod` to its folder through `path=`, and parses
 `interface/stl_gui/*.txt` with a small Paradox-script parser. Each declared panel is registered like a plugin's, with a renderer that walks the parsed tree every frame.
 The only thing a declaration can do is show data and run a `button_effect`: there is no expression language.
-
-## The reference skin
-
-`deck.cpp` draws the status capsule and the Command Deck mostly with `ImDrawList` calls instead of ImGui's stock widgets, in a style far from the game's. It is an ordinary consumer of the same
-snapshot and script channel; `deck = 0` turns it off completely. It is the largest file, and a candidate to become a separate plugin one day.
 
 ## After a game patch
 

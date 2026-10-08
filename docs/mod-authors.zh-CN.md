@@ -54,7 +54,8 @@ panel = {
 
 | 键 | |
 |---|---|
-| `kind = hud` | 不是窗口而是 **HUD**：没有标题栏、没有背景、不能拖动，由 `anchor` 和 `offset` 定位、`size` 定大小（默认 `kind = window`） |
+| `kind = hud` | 不是窗口而是 **HUD**：没有标题栏、没有背景，除非 `movable = yes` 否则不能拖动，由 `anchor` 和 `offset` 定位、`size` 定大小（默认 `kind = window`）。比屏幕宽的 `size` 会缩小到放得下 |
+| `movable = yes` | 用于 HUD：玩家可以拖动它（一开始在 `anchor` 和 `offset` 指定的位置，之后停在放下的地方，直到重启游戏） |
 | `anchor = ...` | HUD 用：`top_left`、`top_center`、`top_right`、`left_center`、`center`、`right_center`、`bottom_left`、`bottom_center`、`bottom_right` |
 | `offset = { x y }` | HUD 用：离所贴边缘向内的像素距离（居中时是离中线的距离） |
 | `hotkey = "ctrl+shift+g"` | 游戏窗口有焦点时，按这个键显示 / 隐藏面板：`ctrl`、`shift`、`alt` 加一个字母、数字、`f1` .. `f12`、`space`、`tab`、`enter`、`esc`。如果机器用 `ctrl+shift` 切换键盘布局，不要用这个组合 |
@@ -178,7 +179,7 @@ defined_text = {
 
 含空格的值，或者游戏不认识的键，按原样显示。
 
-**已知限制：字符。** 引擎的字体图集在 ImGui 启动时一次建成，之后不能再加字形。stellaris-guiexpand 的图集里有常用汉字、拉丁字母和它自己界面用到的字符；你的文字里的生僻字可能显示成 `?`。修复办法（在建图集之前扫描已启用 mod 的本地化文件里的字符）已经列入计划。
+**字符。** 引擎的字体图集在 ImGui 启动时一次建成，之后不能再加字形。所以 stellaris-guiexpand 把常用汉字、拉丁字母、它自己界面用到的字符，以及**当前播放集里带 `interface\stl_gui` 文件夹的 mod 的本地化文件（`.yml`）里的每个字符**、再加上游戏自己的 `concepts*.yml`（资源名称）里的字符，都放进图集。只出现在别的 mod 文本里的字符、或基本多文种平面之外的字符（emoji），仍然可能显示成 `?`。
 
 ## 出错了会怎样
 

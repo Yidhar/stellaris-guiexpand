@@ -4,7 +4,6 @@
 //   loc.cpp          the game's localisation
 //   host_api.cpp     what other plugins see: panel registry, the C drawing table, dispatch with fault isolation, StlGui_GetApi
 //   decl_panels.cpp  panels declared by mods in script files (interface/stl_gui/*.txt)
-//   deck.cpp         the "Command Deck": status capsule and five-page deck, the reference skin
 //   imgui_host.cpp   hooks, fonts, the per-frame entry, start of the engine's ImGui, command file (development)
 //   dllmain.cpp      DllMain
 #pragma once
@@ -61,10 +60,7 @@ std::string ReadWholeFile(const std::wstring& path);
 bool FileExistsW(const std::wstring& path);
 
 struct Config {  // <plugin folder>\config\stellaris_guiexpand.ini
-    bool deck = true;            // the Command Deck skin (status capsule and deck); off: the host only
-    bool deck_open = false;      // the deck window itself open at start (the capsule is always there)
-    int theme = 0;               // colour theme of the skin, 0..3
-    bool stars = true;
+    int theme = 0;               // the player's colour theme at the start, 0..3 (changed through the interface: set_theme)
     bool dev_commands = false;   // logs\stellaris_guiexpand.cmd: lines run by the host (tests); off for players
     bool dev_unload = false;     // a named event unloads the DLL (development builds only; the launcher never unloads plugins)
     std::vector<std::wstring> extra_mod_dirs;  // more folders scanned for declaration files (development)
@@ -151,17 +147,6 @@ struct Pending {  // something to do between turn ticks
 extern std::vector<Pending> g_pending;
 void RunPending();
 
-struct ScriptLogEntry {  // a posted script effect and what became of it
-    std::string key, title, result;
-    double time = 0;
-    int64_t tick_posted = 0, serial_posted = 0;
-    bool done = false, ok = false;
-    double energy_before = 0, energy_after = 0;
-    bool energy_known = false;
-};
-extern std::deque<ScriptLogEntry> g_script_log;
-void CompleteScriptLog();  // after a snapshot: entries posted before it are done
-
 // ----------------------------------------------------------------------------------------------------------------- runtime state (core.cpp)
 extern double g_T;                          // ImGui time
 extern float g_DT;                          // frame time
@@ -197,6 +182,7 @@ struct PanelOptions {
     float w = 360, h = 280;      // first size, in layout pixels
     bool open = true;            // shown at the start
     bool hud = false;            // an undecorated window anchored to a screen edge, sized w x h (kind = hud)
+    bool movable = false;        // a hud the player can drag (the anchor is then only its first place)
     int anchor = 0;              // ANCHOR_* below, for a hud
     float ox = 0, oy = 0;        // distance from the anchored edge(s), in layout pixels
     uint32_t hotkey = 0;         // HK_* modifiers | virtual key << 8, 0 for none
@@ -222,15 +208,8 @@ bool IsBuiltinElement(const std::string& name);           // text separator spac
 
 // ------------------------------------------------------------------------------------------------------- mod-declared panels (decl_panels.cpp)
 void RequestRescan();
+std::string ModGlyphText();  // every non-ASCII character of the localisation of the mods that declare panels (UTF-8), for the font atlas
 void UpdateDeclPanels();  // scans the enabled mods once a game runs, and again when asked to
-
-// ----------------------------------------------------------------------------------------------------------- the Command Deck skin (deck.cpp)
-namespace deck {
-void Frame(const ImGuiIO& io);                 // draws the capsule and the deck (when enabled), inside the host's style
-void Toggle();                                 // the hot key
-bool Command(const char* cmd, int value);      // development commands: deck hud tab theme res eval; true when handled
-void Dump();                                   // development: log the state
-}  // namespace deck
 
 // ----------------------------------------------------------------------------------------------------------------- the ImGui host (imgui_host.cpp)
 bool RunConsole(const char* line);  // one console line, as if typed in the game's console (main thread, not for `imgui off` mid-frame)
