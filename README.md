@@ -29,7 +29,7 @@ It is a plugin of the **Stellaris launcher** (plugin spec v2). It needs no mod a
 |---|---|
 | a player | this page: [Install](#install-and-use), [Settings](#settings) |
 | a **plugin developer** | [docs/developers.md](docs/developers.md) and `examples/` |
-| a **mod author** | [docs/mod-authors.md](docs/mod-authors.md); a working mod is in the [stellaris-guiexpand-test-mod](https://github.com/Yidhar/stellaris-guiexpand-test-mod) repository |
+| a **mod author** | [docs/mod-authors.md](docs/mod-authors.md) ([简体中文](docs/mod-authors.zh-CN.md)); a working mod is in the [stellaris-guiexpand-test-mod](https://github.com/Yidhar/stellaris-guiexpand-test-mod) repository |
 | curious how it works | [docs/architecture.md](docs/architecture.md) |
 
 ## Compatibility
@@ -80,7 +80,7 @@ src/               the host (core, host_api, decl_panels, deck, imgui_host, loc,
 sdk/               stellaris_sdk.hpp: generated subset (RVAs and offsets for the exe build named in it)
 plugin/            stl-plugin.json and defaults\stellaris_guiexpand.ini
 tools/             build.bat, check_plugin.py, extract_sdk.py, gen_ui_glyphs.py, live/guiexpand_test.py
-docs/              developers.md, mod-authors.md, architecture.md
+docs/              developers.md, mod-authors.md (and .zh-CN.md), architecture.md
 ```
 
 ## Building

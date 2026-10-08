@@ -1,5 +1,7 @@
 # Adding a panel to your mod
 
+[English](mod-authors.md) | [简体中文](mod-authors.zh-CN.md)
+
 For **mod authors**: no DLL and no programming. You write a text file in the script syntax the game already uses, inside your mod, and stellaris-guiexpand draws it as a
 window in the game. The player needs the stellaris-guiexpand plugin installed; without it your file is ignored (the game never looks into this folder).
 
@@ -169,7 +171,8 @@ Outside a running game, a declared panel shows *not in a game*.
 While you work, `config\stellaris_guiexpand.ini` has `extra_mod_dirs` (folders scanned besides the active playset's mods), and with `dev_commands=1` a `scan` line in `logs\stellaris_guiexpand.cmd`
 re-reads all declaration files without restarting the game. Windows keep their position and state across a rescan.
 
-The `tools/check_mod.py` of the test mod checks the things a typo breaks silently: every loc key used exists in every language, every effect named exists.
+The `tools/check_mod.py` of the test mod checks the things a typo breaks silently: every loc key used exists in every language, every effect named exists, the keys and script values
+a `scripted_loc` refers to exist, and every `[Root.Name]` of a loc text names a `scripted_loc` of the mod.
 
 ## Multiplayer
 
