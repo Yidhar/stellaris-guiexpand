@@ -1,5 +1,7 @@
 # How stellaris-guiexpand works
 
+[English](architecture.md) | [简体中文](architecture.zh-CN.md)
+
 Notes for people who change the host. The research behind these choices (what was tried, what crashed) is in the Stellaris MCP repository:
 `docs/gui_imgui_feasibility.md`, `docs/gui_native_system.md`, `docs/gui_plugin_api_investigation.md`.
 
@@ -13,13 +15,13 @@ creates no window or swap chain.
 
 | File | Responsibility |
 |---|---|
-| `src/internal.h` | declarations shared between the files, namespace `stellaris-guiexpand` |
+| `src/internal.h` | declarations shared between the files, namespace `guiexpand` |
 | `src/dllmain.cpp` | `DllMain` only starts a thread (it runs under the loader lock and on the launcher's remote thread) |
 | `src/imgui_host.cpp` | hooks, the frame, starting the engine's ImGui, fonts, the development command file, `Start()` |
 | `src/core.cpp` | plugin folder, log, settings; guarded engine memory reads; the game snapshot; the script channel; deferred actions |
 | `src/host_api.cpp` | the panel registry, the C drawing table, `StlGui_GetApi`, dispatch with fault isolation |
 | `src/decl_panels.cpp` | mod discovery, the script-syntax parser, the renderer of declared panels |
-| `src/loc.cpp` | loc key to display text through the engine's localisation |
+| `src/loc.cpp` | loc key to display text through the engine's localisation; texts with `[Root.xxx]` through the engine's scoped text processor |
 | `src/deck.cpp` | the reference skin (capsule and Command Deck); a consumer of the same data as any plugin |
 | `sdk/stellaris_sdk.hpp` | generated; every engine address and offset the host uses |
 
@@ -57,6 +59,14 @@ Fixed-point values are normalised (time and progress are scaled by 100000 in the
 A button builds an engine command, `CExecuteButtonEffectCommand` (size `0x198`: scope at `+0x20`, the effect pointer at `+0x190`, taken from the engine's
 `CButtonEffectDatabase`), asks the engine's own `IsValid` (which gives the refusal reason in the engine's words), and posts it with `PostCommandToSession` at the
 next safe moment. It works while paused. It is the command the game's own buttons use, so every client checks `potential` / `allow` again.
+
+## Scoped localisation
+
+A loc text that contains `[` goes through `CGameText::ProcessWithScope(result, text, scope)` with a `CEventScope` for the player's country, so `[Root.some_variable]`, `[Root.GetName]` and
+`scripted_loc` (script values through one) are evaluated by the engine. The engine builds the scope inside a `CExecuteButtonEffectCommand` object (the one the script channel fills in);
+stellaris-guiexpand uses that object only as a holder and destroys it without posting. The text processor reads game state, so it runs between turn ticks only, once per snapshot
+and key (about a microsecond each); a callback that runs inside a tick gets the last value. Research, calling convention and the fingerprints: `docs/gui_scoped_localisation.md` in the
+Stellaris MCP repository.
 
 ## Panels and fault isolation
 

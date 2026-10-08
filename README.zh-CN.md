@@ -24,9 +24,9 @@
 | 你是 | 读 |
 |---|---|
 | 玩家 | 本页：[安装](#安装和使用)、[设置](#设置) |
-| **插件开发者** | [docs/developers.md](docs/developers.md) 和 `examples/` |
+| **插件开发者** | [docs/developers.zh-CN.md](docs/developers.zh-CN.md)（[English](docs/developers.md)）和 `examples/` |
 | **mod 作者** | [docs/mod-authors.zh-CN.md](docs/mod-authors.zh-CN.md)（[English](docs/mod-authors.md)）；可运行的 mod 见 [stellaris-guiexpand-test-mod](https://github.com/Yidhar/stellaris-guiexpand-test-mod) 仓库 |
-| 想知道原理 | [docs/architecture.md](docs/architecture.md) |
+| 想知道原理 | [docs/architecture.zh-CN.md](docs/architecture.zh-CN.md)（[English](docs/architecture.md)） |
 
 ## 兼容性
 
@@ -70,7 +70,7 @@ src/               宿主（core、host_api、decl_panels、deck、imgui_host、
 sdk/               stellaris_sdk.hpp：生成的子集（所写 exe 版本的 RVA 和偏移）
 plugin/            stl-plugin.json 和 defaults\stellaris_guiexpand.ini
 tools/             build.bat、check_plugin.py、extract_sdk.py、gen_ui_glyphs.py、live/guiexpand_test.py
-docs/              developers.md、mod-authors.md（和 .zh-CN.md）、architecture.md
+docs/              developers.md、mod-authors.md、architecture.md（都有 .zh-CN.md 中文版）
 ```
 
 ## 构建

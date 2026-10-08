@@ -1,5 +1,7 @@
 # Writing a plugin that shows panels through stellaris-guiexpand
 
+[English](developers.md) | [简体中文](developers.zh-CN.md)
+
 For developers of Stellaris launcher plugins (DLLs). If you want to add a panel from a **mod** (no DLL), read [mod-authors.md](mod-authors.md) ([简体中文](mod-authors.zh-CN.md)) instead.
 
 You get a window in the game, drawn with the engine's own Dear ImGui, by giving the host a function. The host calls it every frame, inside the

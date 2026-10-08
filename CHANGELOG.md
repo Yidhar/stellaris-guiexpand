@@ -20,7 +20,7 @@ The first version as its own repository. Everything before it was a prototype in
 Differences from the prototype: the plugin id is `stellaris-guiexpand` and the log, settings and development files live in the plugin folder (`logs\`, `config\`); the demo button effects
 are `guiexpand_test_*` and come from the stellaris-guiexpand-test-mod repository; the host's panel registry takes the window size and title kind as options instead of knowing about declared panels.
 
-The mod author guide is also in Chinese (`docs/mod-authors.zh-CN.md`).
+The developer guide, the mod author guide and the architecture notes are also in Chinese (`docs/*.zh-CN.md`).
 
 Naming: the working name was `guidll`; before the first release it became `stellaris-guiexpand` (plugin id, repository, folder), `stellaris_guiexpand.dll`
 (`stellaris_guiexpand.ini`, `logs\stellaris_guiexpand.log`), C++ namespace `guiexpand`, headers in `include/stellaris_guiexpand/`. The C interface keeps its `Stl` / `STL_` prefix and the
