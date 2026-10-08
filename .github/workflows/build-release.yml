@@ -1,0 +1,119 @@
+name: Build and release
+
+# Every push to main and every pull request builds guidll.dll and the example plugins, checks the plugin folder against the launcher's plugin spec,
+# and keeps the packaged zips as workflow artifacts. Pushing a tag v<version> (the version of plugin/stl-plugin.json, for example v0.1.0) also
+# publishes a GitHub Release with the zips and their SHA-256 files.
+#   guidll-v<version>.zip      the plugin folder (what players install)
+#   guidll-sdk-v<version>.zip  headers, examples and docs for developers of other plugins
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write  # creating the release
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check the Python scripts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $files = Get-ChildItem -Recurse -Filter *.py tools | ForEach-Object FullName
+          python -m py_compile @files
+          if ($LASTEXITCODE -ne 0) { throw "py_compile failed" }
+
+      # the glyph list is generated from the UI strings: a string changed without regenerating it would show as '?' in game
+      - name: Check the generated glyph list is current
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python tools/gen_ui_glyphs.py
+          git diff --exit-code -- src/ui_glyphs.inc
+          if ($LASTEXITCODE -ne 0) { throw "src/ui_glyphs.inc is stale: run tools/gen_ui_glyphs.py and commit it" }
+
+      - name: Check the plugin manifest
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ($env:GITHUB_REF_TYPE -eq "tag") { python tools/check_plugin.py --tag $env:GITHUB_REF_NAME } else { python tools/check_plugin.py }
+          if ($LASTEXITCODE -ne 0) { throw "check_plugin failed" }
+
+      # MSVC x64; MinHook and Dear ImGui 1.85 come from FetchContent
+      - name: Configure
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Package
+        id: package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $ver = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "dev-$($env:GITHUB_SHA.Substring(0, 7))" }
+          $ts = (Select-String -Path sdk/stellaris_sdk.hpp -Pattern "kExeTimestamp = (0x[0-9A-Fa-f]+)").Matches[0].Groups[1].Value
+          $built = [DateTimeOffset]::FromUnixTimeSeconds([Convert]::ToInt64($ts, 16)).UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'")
+
+          # --- guidll: the plugin. The zip IS the plugin folder (no top folder).
+          $plugin = "guidll-$ver"
+          $dir = "package/guidll"
+          New-Item -ItemType Directory -Force -Path "$dir/defaults" | Out-Null
+          Copy-Item build/Release/guidll.dll $dir/
+          Copy-Item plugin/stl-plugin.json $dir/
+          Copy-Item plugin/defaults/guidll.ini "$dir/defaults/"
+          Copy-Item README.md, README.zh-CN.md, LICENSE $dir/
+          if ($env:GITHUB_REF_TYPE -eq "tag") { python tools/check_plugin.py --dir $dir --release --tag $env:GITHUB_REF_NAME } else { python tools/check_plugin.py --dir $dir --release }
+          if ($LASTEXITCODE -ne 0) { throw "the plugin folder does not pass check_plugin" }
+          Compress-Archive -Path "$dir/*" -DestinationPath "package/$plugin.zip"
+
+          # --- guidll-sdk: what a developer of another plugin needs (not a plugin)
+          $sdk = "guidll-sdk-$ver"
+          $out = "package/$sdk"
+          New-Item -ItemType Directory -Force -Path "$out/include", "$out/examples", "$out/docs" | Out-Null
+          Copy-Item include/guidll "$out/include/guidll" -Recurse
+          Copy-Item examples/* "$out/examples/" -Recurse
+          Copy-Item docs/developers.md, docs/mod-authors.md "$out/docs/"
+          Copy-Item README.md, README.zh-CN.md, LICENSE $out/
+          @(
+            "The interface in include/guidll is for the host built for the stellaris.exe whose PE timestamp is $ts ($built), Stellaris 4.5.2 (Windows x64).",
+            "A plugin that only uses this interface does not depend on the game build: the host is updated after a game patch, the plugin is not rebuilt."
+          ) | Set-Content -Encoding utf8 "$out/GAME_BUILD.txt"
+          Compress-Archive -Path $out -DestinationPath "package/$sdk.zip"
+
+          # <zip>.sha256: the hex digest first, then the file name (the launcher checks the download against it)
+          foreach ($n in $plugin, $sdk) {
+            $hash = (Get-FileHash "package/$n.zip" -Algorithm SHA256).Hash.ToLower()
+            "$hash  $n.zip" | Set-Content -Encoding ascii "package/$n.zip.sha256"
+          }
+          "version=$ver" >> $env:GITHUB_OUTPUT
+          "exe_timestamp=$ts" >> $env:GITHUB_OUTPUT
+          "exe_built=$built" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guidll-${{ steps.package.outputs.version }}
+          path: package/*.zip*
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: package/*.zip*
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            Built for **Stellaris 4.5.2** (Windows x64), `stellaris.exe` PE timestamp `${{ steps.package.outputs.exe_timestamp }}` (${{ steps.package.outputs.exe_built }}).
+            The DLL only works with that exact game build; the launcher checks this from the manifest.
+
+            - `guidll-v*.zip`: the plugin, laid out as its plugin folder (`stl-plugin.json`, `guidll.dll`, `defaults\`). Unpack it into `Documents\Paradox Interactive\Stellaris\plugins\guidll\`, or install the unpacked folder with the Stellaris launcher. Start the game with the launcher: that is what loads the plugin.
+            - `guidll-sdk-v*.zip`: the C interface, examples and documentation for developers of plugins that draw panels through guidll.

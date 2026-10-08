@@ -1,0 +1,4 @@
+# Text files are stored with LF; Windows batch files need CRLF (labels and goto misbehave with LF-only files).
+* text=auto
+*.bat text eol=crlf
+*.png binary

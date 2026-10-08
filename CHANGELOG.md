@@ -1,0 +1,18 @@
+# Changelog
+
+## 0.1.0 (unreleased)
+
+The first version as its own repository. Everything before it was a prototype inside the Stellaris MCP repository (`docs/gui_probe/`).
+
+- The host: starts the engine's Dear ImGui (1.85), adds fonts, draws inside its frame through three hooks (`ImGui::NewFrame`, `NImGuiWrapper::ImGuiInit`,
+  `CGameState::HandleTurnTick`).
+- The public C interface `include/guidll/stellaris_gui_api.h` (API version 1): panels (window and overlay), the game snapshot, script effects, speed and pause, log,
+  and a C drawing table for plugins without ImGui. Helper headers for finding the host and for binding a plugin's own ImGui (with a layout check).
+- Fault isolation for plugin panels: exceptions, unbalanced ImGui stacks, unloaded code, mismatched ImGui configuration.
+- Panels declared by mods in `interface/stl_gui/*.txt` (`stl_gui_version = 1`).
+- The reference skin: status capsule and Command Deck (overview, economy, time, script, settings; four themes).
+- Plugin of the Stellaris launcher (manifest schema 2, settings in `config\guidll.ini`), built for the `stellaris.exe` with PE timestamp `0x6ABEAA3F` (Stellaris 4.5.2).
+- Examples: a plugin with its own ImGui, a plain C plugin.
+
+Differences from the prototype: the plugin id is `guidll` and the log, settings and development files live in the plugin folder (`logs\`, `config\`); the demo button effects
+are `guidll_test_*` and come from the guidll-test-mod repository; the host's panel registry takes the window size and title kind as options instead of knowing about declared panels.

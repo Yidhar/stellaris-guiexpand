@@ -1,0 +1,22 @@
+# build output
+build/
+package/
+*.dll
+*.dll.old
+*.obj
+*.lib
+*.exp
+*.pdb
+*.ilk
+
+# Python
+__pycache__/
+*.py[cod]
+
+# a plugin folder made for tests (config, logs)
+run/
+
+# IDE
+.vs/
+.vscode/
+.idea/
