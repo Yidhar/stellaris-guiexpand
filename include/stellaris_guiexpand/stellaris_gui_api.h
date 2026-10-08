@@ -27,7 +27,7 @@ extern "C" {
 struct StlGuiApi;
 typedef const struct StlGuiApi* (*StlGui_GetApi_fn)(uint32_t requested_version);
 #define STL_GUI_EXPORT_NAME "StlGui_GetApi"
-#define STL_GUI_HOST_DLL L"guidll.dll" /* the host plugin's DLL (plugin id `guidll`) */
+#define STL_GUI_HOST_DLL L"stellaris_guiexpand.dll" /* the host plugin's DLL (plugin id `stellaris-guiexpand`) */
 
 /* ---------------------------------------------------------------------------------------- what a draw callback receives */
 struct StlGuiUi;

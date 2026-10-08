@@ -1,7 +1,7 @@
-"""Writes sdk/stellaris_sdk.hpp: the part of the generated Stellaris SDK header that guidll uses.
+"""Writes sdk/stellaris_sdk.hpp: the part of the generated Stellaris SDK header that stellaris-guiexpand uses.
 
 The full header (about 7000 lines: every serializer offset, every command spec) is produced from the installed stellaris.exe by tools/sdk_dumper in the
-Stellaris MCP repository (https://github.com/Yidhar/stellaris-mcp). guidll only needs a few dozen engine functions, globals, runtime offsets and one
+Stellaris MCP repository (https://github.com/Yidhar/stellaris-mcp). stellaris-guiexpand only needs a few dozen engine functions, globals, runtime offsets and one
 command spec, so this script copies those and nothing else.
 
     python tools/extract_sdk.py <full stellaris_sdk.hpp> [-o sdk/stellaris_sdk.hpp]

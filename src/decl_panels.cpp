@@ -5,7 +5,7 @@
 
 #include "internal.h"
 
-namespace guidll {
+namespace guiexpand {
 namespace {
 
 struct SNode {
@@ -312,4 +312,4 @@ void UpdateDeclPanels() {
     }
 }
 
-}  // namespace guidll
+}  // namespace guiexpand

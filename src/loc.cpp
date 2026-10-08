@@ -1,7 +1,7 @@
 // The game's localisation: a loc key to the text of the current language, and text with script values in it.
 #include "internal.h"
 
-namespace guidll {
+namespace guiexpand {
 namespace {
 std::unordered_map<std::string, std::string> g_loc_cache;   // key -> display text
 std::unordered_map<std::string, std::string> g_raw_cache;   // key -> the text as the loc file has it ([...] and § markup kept)
@@ -101,4 +101,4 @@ std::string LocScoped(const std::string& key) {
     return e.serial < 0 ? std::string("…") : e.value;
 }
 
-}  // namespace guidll
+}  // namespace guiexpand

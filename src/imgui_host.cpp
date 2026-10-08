@@ -16,7 +16,7 @@ static_assert(offsetof(ImGuiIO, ImeWindowHandle) == sdk::rt::ImGuiIO_ImeWindowHa
 static_assert(offsetof(ImGuiIO, BackendPlatformUserData) == sdk::rt::ImGuiIO_BackendPlatformUserData,
               "ImGuiIO::BackendPlatformUserData differs from the engine's");
 
-namespace guidll {
+namespace guiexpand {
 namespace {
 
 using FnVoid = void (*)();
@@ -54,11 +54,11 @@ void RunProbes() {
     g_probe_queue.clear();
 }
 
-// logs\guidll.cmd (only with dev_commands = 1): lines such as "deck 1", "tab 3", "post guidll_test_grant_energy", "dump". The file is deleted once run.
+// logs\stellaris_guiexpand.cmd (only with dev_commands = 1): lines such as "deck 1", "tab 3", "post guiexpand_test_grant_energy", "dump". The file is deleted once run.
 void PollCommandFile() {
     static int n = 0;
     if (++n % 20) return;
-    const std::wstring path = PluginDir() + L"logs\\guidll.cmd";
+    const std::wstring path = PluginDir() + L"logs\\stellaris_guiexpand.cmd";
     if (!FileExistsW(path)) return;
     FILE* f = _wfopen(path.c_str(), L"r");
     if (!f) return;
@@ -399,7 +399,7 @@ void Start() {
 
     // development builds only: unload by event, so that a new build can be tried without restarting the game
     char name[64];
-    wsprintfA(name, "Local\\guidll_unload_%lu", GetCurrentProcessId());
+    wsprintfA(name, "Local\\stellaris_guiexpand_unload_%lu", GetCurrentProcessId());
     HANDLE ev = CreateEventA(nullptr, TRUE, FALSE, name);
     if (!ev) return;
     WaitForSingleObject(ev, INFINITE);
@@ -413,4 +413,4 @@ void Start() {
     FreeLibraryAndExitThread(g_module, 0);
 }
 
-}  // namespace guidll
+}  // namespace guiexpand

@@ -1,22 +1,22 @@
 // The Command Deck: a status capsule at the bottom of the screen and a five-page deck (overview, economy, time, script effects, settings), drawn
 // entirely with ImGui draw lists in a style that has nothing in common with the game's own. The reference skin of the host; it reads the same
-// snapshot and uses the same script channel as any other plugin would, and it can be switched off (deck = 0 in config\guidll.ini).
+// snapshot and uses the same script channel as any other plugin would, and it can be switched off (deck = 0 in config\stellaris_guiexpand.ini).
 #include "internal.h"
 
-namespace guidll {
+namespace guiexpand {
 namespace {
 
-// the effects the script page offers: the test mod (guidll-test-mod) defines them
+// the effects the script page offers: the test mod (stellaris-guiexpand-test-mod) defines them
 struct ButtonDef {
     const char* key;
     const char* title;
     const char* desc;
 };
 const ButtonDef kButtons[] = {
-    { "guidll_test_grant_energy", "注入能量", "向国库增加 100 能量币。allow 恒为真，用来验证写入通道本身。" },
-    { "guidll_test_set_mark", "写入国家旗标", "set_country_flag guidll_test_marked。已写入时引擎判定为不可用。" },
-    { "guidll_test_clear_mark", "清除国家旗标", "remove_country_flag。只有旗标存在时才可用，与上一个互为开关。" },
-    { "guidll_test_rich_only", "富豪特权", "需要 100 万合金才通过 allow：展示引擎给出的拒绝原因。" },
+    { "guiexpand_test_grant_energy", "注入能量", "向国库增加 100 能量币。allow 恒为真，用来验证写入通道本身。" },
+    { "guiexpand_test_set_mark", "写入国家旗标", "set_country_flag guiexpand_test_marked。已写入时引擎判定为不可用。" },
+    { "guiexpand_test_clear_mark", "清除国家旗标", "remove_country_flag。只有旗标存在时才可用，与上一个互为开关。" },
+    { "guiexpand_test_rich_only", "富豪特权", "需要 100 万合金才通过 allow：展示引擎给出的拒绝原因。" },
 };
 struct ButtonState {
     bool found = false, valid = false;
@@ -1017,4 +1017,4 @@ void Dump() {
 }
 
 }  // namespace deck
-}  // namespace guidll
+}  // namespace guiexpand

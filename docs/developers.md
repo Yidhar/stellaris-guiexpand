@@ -1,4 +1,4 @@
-# Writing a plugin that shows panels through guidll
+# Writing a plugin that shows panels through stellaris-guiexpand
 
 For developers of Stellaris launcher plugins (DLLs). If you want to add a panel from a **mod** (no DLL), read [mod-authors.md](mod-authors.md) instead.
 
@@ -6,7 +6,7 @@ You get a window in the game, drawn with the engine's own Dear ImGui, by giving 
 engine's ImGui frame, on the main thread. You do not hook the renderer, you do not read engine memory, and your plugin does not carry a game
 build: after a game patch the **host** is updated, your plugin is not rebuilt.
 
-The whole interface is `include/guidll/stellaris_gui_api.h` (plain C). Two small helper headers sit next to it. Working plugins are in `examples/`.
+The whole interface is `include/stellaris_guiexpand/stellaris_gui_api.h` (plain C). Two small helper headers sit next to it. Working plugins are in `examples/`.
 
 ## The rules
 
@@ -20,7 +20,7 @@ The whole interface is `include/guidll/stellaris_gui_api.h` (plain C). Two small
 
 ## Finding the host
 
-The host DLL (`guidll.dll`, plugin id `guidll`) exports one function:
+The host DLL (`stellaris_guiexpand.dll`, plugin id `stellaris-guiexpand`) exports one function:
 
 ```c
 const StlGuiApi* StlGui_GetApi(uint32_t requested_version);   // NULL when that version is not supported
@@ -122,7 +122,7 @@ All through `ctx->api`, inside callbacks:
 | `effect_state(key, reason, cap)` | a mod's `common/button_effects` entry: `1` may run now, `0` the engine refuses (the **engine's own reason text** goes to `reason`), `-1` unknown. The engine evaluates `potential` and `allow` |
 | `post_effect(key)` | queue the effect for the next safe moment, through the engine's own command (`CExecuteButtonEffectCommand`), for the player country. Returns 1 when queued. The engine checks it again. Verified in single player |
 | `set_speed(n)` / `set_paused(b)` | the game's own setters, applied between ticks |
-| `log(plugin_id, line)` | a line in guidll's log, prefixed with your id |
+| `log(plugin_id, line)` | a line in stellaris-guiexpand's log, prefixed with your id |
 | `localize(key, out, cap)` | *(appended after the first release: check `api->size >= offsetof(StlGuiApi, localize) + sizeof(void*)`)* a localisation key of the game (for example of a mod) as display text for the player's country. The text may contain `[Root.my_variable]`, `[Root.GetName]` or a `scripted_loc`, which the engine evaluates: that is how you show what a mod's script computes. Cheap to call every frame (the value is refreshed between ticks, when the game state changed). Returns the number of bytes copied; a text with a space in it is returned as written |
 
 A button effect can also be a **question**: write an effect with an empty `effect = { }` and any triggers in `potential` / `allow`, and `effect_state` tells
@@ -157,6 +157,6 @@ Your plugin's manifest can leave `game.exe_timestamps` out if it uses only this 
 ## Try the examples
 
 `examples/cpp_imgui/consumer_imgui.cpp` and `examples/c/consumer_c.c` build with the main project (`tools\build.bat`: `example_imgui.dll`, `example_c.dll`,
-`example_imgui_badcfg.dll`). To see them in a running game without the launcher, `python tools/live/guidll_test.py` stages and injects them (the header of the
+`example_imgui_badcfg.dll`). To see them in a running game without the launcher, `python tools/live/guiexpand_test.py` stages and injects them (the header of the
 script has the details). Each example's `consumer_<tag>.cmd` file next to its DLL accepts `fault` (raise an access violation in the callback) and `leak`
 (leave ImGui stacks unbalanced), to watch the host's protection work.

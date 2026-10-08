@@ -1,9 +1,9 @@
 # Adding a panel to your mod
 
-For **mod authors**: no DLL and no programming. You write a text file in the script syntax the game already uses, inside your mod, and guidll draws it as a
-window in the game. The player needs the guidll plugin installed; without it your file is ignored (the game never looks into this folder).
+For **mod authors**: no DLL and no programming. You write a text file in the script syntax the game already uses, inside your mod, and stellaris-guiexpand draws it as a
+window in the game. The player needs the stellaris-guiexpand plugin installed; without it your file is ignored (the game never looks into this folder).
 
-A complete working mod is in the [guidll-test-mod](https://github.com/Yidhar/guidll-test-mod) repository: copy its layout.
+A complete working mod is in the [stellaris-guiexpand-test-mod](https://github.com/Yidhar/stellaris-guiexpand-test-mod) repository: copy its layout.
 
 ```
 my_mod/
@@ -100,7 +100,7 @@ Any trigger works this way (flags, technologies, ethics, resource amounts, event
 ## Showing values the script computes
 
 Every text of a declared panel (`text`, every `label`, button texts, the two sentences of a `badge`) is a localisation key, and a localisation text may contain the
-game's own `[...]` commands. guidll has the engine evaluate them, for **the player's country** (`This`, `From` and `Root` all mean the player's country), so a panel
+game's own `[...]` commands. stellaris-guiexpand has the engine evaluate them, for **the player's country** (`This`, `From` and `Root` all mean the player's country), so a panel
 can show what your script computes:
 
 ![A declared panel showing a country name, a stored variable, a scripted_loc and a script value](images/scoped_panel.png)
@@ -112,24 +112,24 @@ can show what your script computes:
 | `"[Root.MyFlagText]"` | a **scripted_loc**: `defined_text = { name = MyFlagText ... }` of `common/scripted_loc`, the text chosen by triggers |
 | `"Value: [Root.MyValue]"` | a **script value**, through a scripted_loc: `defined_text = { name = MyValue  value = value:my_script_value }` |
 
-This is the test mod's panel (`guidll-test-mod`), all four lines tested in the game:
+This is the test mod's panel (`stellaris-guiexpand-test-mod`), all four lines tested in the game:
 
 ```
-# common/script_values/guidll_test.txt
-guidll_test_value = { base = 10  modifier = { add = 5  has_country_flag = guidll_test_marked } }
+# common/script_values/guiexpand_test.txt
+guiexpand_test_value = { base = 10  modifier = { add = 5  has_country_flag = guiexpand_test_marked } }
 
-# common/scripted_loc/guidll_test.txt
-defined_text = { name = GuidllTestValue  value = value:guidll_test_value }
+# common/scripted_loc/guiexpand_test.txt
+defined_text = { name = GuiexpandTestValue  value = value:guiexpand_test_value }
 defined_text = {
-    name = GuidllTestFlag
-    text = { trigger = { has_country_flag = guidll_test_marked }  localization_key = guidll_test_flag_on }
-    default = guidll_test_flag_off
+    name = GuiexpandTestFlag
+    text = { trigger = { has_country_flag = guiexpand_test_marked }  localization_key = guiexpand_test_flag_on }
+    default = guiexpand_test_flag_off
 }
 
-# localisation/english/guidll_test_l_english.yml
- GUIDLL_TEST_SC_COUNTER:0 "Counter (a stored variable): [Root.guidll_test_counter]"
- GUIDLL_TEST_SC_FLAG:0 "Flag (a scripted_loc): [Root.GuidllTestFlag]"
- GUIDLL_TEST_SC_VALUE:0 "Script value: [Root.GuidllTestValue]"
+# localisation/english/guiexpand_test_l_english.yml
+ GUIEXPAND_TEST_SC_COUNTER:0 "Counter (a stored variable): [Root.guiexpand_test_counter]"
+ GUIEXPAND_TEST_SC_FLAG:0 "Flag (a scripted_loc): [Root.GuiexpandTestFlag]"
+ GUIEXPAND_TEST_SC_VALUE:0 "Script value: [Root.GuiexpandTestValue]"
 ```
 
 Things to know:
@@ -147,26 +147,26 @@ translations work like those of any mod. Remember the engine's rule that localis
 
 A value that contains a space, or a key the game does not know, is shown as written.
 
-**Known limitation: characters.** The engine builds its font atlas once, when the ImGui starts, and cannot add glyphs later. guidll's atlas has the common Chinese
+**Known limitation: characters.** The engine builds its font atlas once, when the ImGui starts, and cannot add glyphs later. stellaris-guiexpand's atlas has the common Chinese
 characters, Latin and the characters of its own UI; a rare character in your texts may show as `?`. A fix (scanning enabled mods' localisation for the characters before
 the atlas is built) is planned.
 
 ## What happens when something is wrong
 
-File-level mistakes are written to guidll's log (`logs\guidll.log` in the plugin folder), not shown in the game:
+File-level mistakes are written to stellaris-guiexpand's log (`logs\stellaris_guiexpand.log` in the plugin folder), not shown in the game:
 
 | Mistake | Result |
 |---|---|
 | a syntax error (unbalanced braces...) | the whole file is ignored; the log names the file |
 | no `stl_gui_version = 1` | the file is ignored; logged |
 | a panel without `id`, or a second panel with an id already used in the mod | that panel is ignored; logged |
-| an unknown element or key | skipped **silently**, so an older guidll can read part of a newer file; check your spelling |
+| an unknown element or key | skipped **silently**, so an older stellaris-guiexpand can read part of a newer file; check your spelling |
 | an unknown `effect` (button) | the button is shown disabled |
 | an unknown `stat` or `resource` | the value is shown as `?` |
 
 Outside a running game, a declared panel shows *not in a game*.
 
-While you work, `config\guidll.ini` has `extra_mod_dirs` (folders scanned besides the active playset's mods), and with `dev_commands=1` a `scan` line in `logs\guidll.cmd`
+While you work, `config\stellaris_guiexpand.ini` has `extra_mod_dirs` (folders scanned besides the active playset's mods), and with `dev_commands=1` a `scan` line in `logs\stellaris_guiexpand.cmd`
 re-reads all declaration files without restarting the game. Windows keep their position and state across a rescan.
 
 The `tools/check_mod.py` of the test mod checks the things a typo breaks silently: every loc key used exists in every language, every effect named exists.

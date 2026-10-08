@@ -1,10 +1,10 @@
 name: Build and release
 
-# Every push to main and every pull request builds guidll.dll and the example plugins, checks the plugin folder against the launcher's plugin spec,
+# Every push to main and every pull request builds stellaris_guiexpand.dll and the example plugins, checks the plugin folder against the launcher's plugin spec,
 # and keeps the packaged zips as workflow artifacts. Pushing a tag v<version> (the version of plugin/stl-plugin.json, for example v0.1.0) also
 # publishes a GitHub Release with the zips and their SHA-256 files.
-#   guidll-v<version>.zip      the plugin folder (what players install)
-#   guidll-sdk-v<version>.zip  headers, examples and docs for developers of other plugins
+#   stellaris-guiexpand-v<version>.zip      the plugin folder (what players install)
+#   stellaris-guiexpand-sdk-v<version>.zip  headers, examples and docs for developers of other plugins
 on:
   push:
     branches: [main]
@@ -64,28 +64,28 @@ jobs:
           $ts = (Select-String -Path sdk/stellaris_sdk.hpp -Pattern "kExeTimestamp = (0x[0-9A-Fa-f]+)").Matches[0].Groups[1].Value
           $built = [DateTimeOffset]::FromUnixTimeSeconds([Convert]::ToInt64($ts, 16)).UtcDateTime.ToString("yyyy-MM-dd HH:mm 'UTC'")
 
-          # --- guidll: the plugin. The zip IS the plugin folder (no top folder).
-          $plugin = "guidll-$ver"
-          $dir = "package/guidll"
+          # --- stellaris-guiexpand: the plugin. The zip IS the plugin folder (no top folder).
+          $plugin = "stellaris-guiexpand-$ver"
+          $dir = "package/stellaris-guiexpand"
           New-Item -ItemType Directory -Force -Path "$dir/defaults" | Out-Null
-          Copy-Item build/Release/guidll.dll $dir/
+          Copy-Item build/Release/stellaris_guiexpand.dll $dir/
           Copy-Item plugin/stl-plugin.json $dir/
-          Copy-Item plugin/defaults/guidll.ini "$dir/defaults/"
+          Copy-Item plugin/defaults/stellaris_guiexpand.ini "$dir/defaults/"
           Copy-Item README.md, README.zh-CN.md, LICENSE $dir/
           if ($env:GITHUB_REF_TYPE -eq "tag") { python tools/check_plugin.py --dir $dir --release --tag $env:GITHUB_REF_NAME } else { python tools/check_plugin.py --dir $dir --release }
           if ($LASTEXITCODE -ne 0) { throw "the plugin folder does not pass check_plugin" }
           Compress-Archive -Path "$dir/*" -DestinationPath "package/$plugin.zip"
 
-          # --- guidll-sdk: what a developer of another plugin needs (not a plugin)
-          $sdk = "guidll-sdk-$ver"
+          # --- stellaris-guiexpand-sdk: what a developer of another plugin needs (not a plugin)
+          $sdk = "stellaris-guiexpand-sdk-$ver"
           $out = "package/$sdk"
           New-Item -ItemType Directory -Force -Path "$out/include", "$out/examples", "$out/docs" | Out-Null
-          Copy-Item include/guidll "$out/include/guidll" -Recurse
+          Copy-Item include/stellaris_guiexpand "$out/include/stellaris_guiexpand" -Recurse
           Copy-Item examples/* "$out/examples/" -Recurse
           Copy-Item docs/developers.md, docs/mod-authors.md "$out/docs/"
           Copy-Item README.md, README.zh-CN.md, LICENSE $out/
           @(
-            "The interface in include/guidll is for the host built for the stellaris.exe whose PE timestamp is $ts ($built), Stellaris 4.5.2 (Windows x64).",
+            "The interface in include/stellaris_guiexpand is for the host built for the stellaris.exe whose PE timestamp is $ts ($built), Stellaris 4.5.2 (Windows x64).",
             "A plugin that only uses this interface does not depend on the game build: the host is updated after a game patch, the plugin is not rebuilt."
           ) | Set-Content -Encoding utf8 "$out/GAME_BUILD.txt"
           Compress-Archive -Path $out -DestinationPath "package/$sdk.zip"
@@ -101,7 +101,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: guidll-${{ steps.package.outputs.version }}
+          name: stellaris-guiexpand-${{ steps.package.outputs.version }}
           path: package/*.zip*
 
       - name: Publish release
@@ -115,5 +115,5 @@ jobs:
             Built for **Stellaris 4.5.2** (Windows x64), `stellaris.exe` PE timestamp `${{ steps.package.outputs.exe_timestamp }}` (${{ steps.package.outputs.exe_built }}).
             The DLL only works with that exact game build; the launcher checks this from the manifest.
 
-            - `guidll-v*.zip`: the plugin, laid out as its plugin folder (`stl-plugin.json`, `guidll.dll`, `defaults\`). Unpack it into `Documents\Paradox Interactive\Stellaris\plugins\guidll\`, or install the unpacked folder with the Stellaris launcher. Start the game with the launcher: that is what loads the plugin.
-            - `guidll-sdk-v*.zip`: the C interface, examples and documentation for developers of plugins that draw panels through guidll.
+            - `stellaris-guiexpand-v*.zip`: the plugin, laid out as its plugin folder (`stl-plugin.json`, `stellaris_guiexpand.dll`, `defaults\`). Unpack it into `Documents\Paradox Interactive\Stellaris\plugins\stellaris-guiexpand\`, or install the unpacked folder with the Stellaris launcher. Start the game with the launcher: that is what loads the plugin.
+            - `stellaris-guiexpand-sdk-v*.zip`: the C interface, examples and documentation for developers of plugins that draw panels through stellaris-guiexpand.

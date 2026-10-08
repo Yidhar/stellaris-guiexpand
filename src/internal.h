@@ -1,4 +1,4 @@
-// Declarations shared by the translation units of guidll.dll. Nothing in here is part of the public interface (that is include/guidll/).
+// Declarations shared by the translation units of stellaris_guiexpand.dll. Nothing in here is part of the public interface (that is include/stellaris_guiexpand/).
 //
 //   core.cpp         engine access (guarded reads and calls), game snapshot, script effect channel, deferred actions, runtime state, log, config
 //   loc.cpp          the game's localisation
@@ -27,13 +27,13 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "sdk/stellaris_sdk.hpp"
-#include "guidll/stellaris_gui_api.h"
+#include "stellaris_guiexpand/stellaris_gui_api.h"
 
 #ifndef IM_PI
 #define IM_PI 3.14159265358979323846f
 #endif
 
-namespace guidll {
+namespace guiexpand {
 
 // ------------------------------------------------------------------------------------------ the engine's ImGui (located by tools/sdk_dumper)
 inline constexpr uintptr_t kGImGui = sdk::glob::GImGui;                    // ImGuiContext* GImGui
@@ -49,7 +49,7 @@ extern HMODULE g_module;       // this DLL
 extern volatile LONG g_in_detour, g_tick_depth;
 extern volatile LONG64 g_frames_total, g_frames_in_tick, g_ticks;
 
-void Log(const char* fmt, ...);  // <plugin folder>\logs\guidll.log (UTF-8)
+void Log(const char* fmt, ...);  // <plugin folder>\logs\stellaris_guiexpand.log (UTF-8)
 void OpenLog();
 void CloseLog();
 
@@ -59,12 +59,12 @@ std::string WideToUtf8(const std::wstring& s);
 std::string ReadWholeFile(const std::wstring& path);
 bool FileExistsW(const std::wstring& path);
 
-struct Config {  // <plugin folder>\config\guidll.ini
+struct Config {  // <plugin folder>\config\stellaris_guiexpand.ini
     bool deck = true;            // the Command Deck skin (status capsule and deck); off: the host only
     bool deck_open = false;      // the deck window itself open at start (the capsule is always there)
     int theme = 0;               // colour theme of the skin, 0..3
     bool stars = true;
-    bool dev_commands = false;   // logs\guidll.cmd: lines run by the host (tests); off for players
+    bool dev_commands = false;   // logs\stellaris_guiexpand.cmd: lines run by the host (tests); off for players
     bool dev_unload = false;     // a named event unloads the DLL (development builds only; the launcher never unloads plugins)
     std::vector<std::wstring> extra_mod_dirs;  // more folders scanned for declaration files (development)
 };
@@ -207,4 +207,4 @@ void Dump();                                   // development: log the state
 bool RunConsole(const char* line);  // one console line, as if typed in the game's console (main thread, not for `imgui off` mid-frame)
 void Start();                       // the worker thread of the plugin: hooks, then waits (dev builds: for the unload event)
 
-}  // namespace guidll
+}  // namespace guiexpand

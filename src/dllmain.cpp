@@ -4,7 +4,7 @@
 
 namespace {
 DWORD WINAPI Worker(LPVOID) {
-    guidll::Start();
+    guiexpand::Start();
     return 0;
 }
 }  // namespace
@@ -12,7 +12,7 @@ DWORD WINAPI Worker(LPVOID) {
 BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID) {
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(module);
-        guidll::g_module = module;
+        guiexpand::g_module = module;
         HANDLE t = CreateThread(nullptr, 0, Worker, nullptr, 0, nullptr);
         if (t) CloseHandle(t);
     }

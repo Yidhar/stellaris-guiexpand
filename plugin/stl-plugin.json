@@ -1,15 +1,15 @@
 {
   "schema": 2,
-  "id": "guidll",
+  "id": "stellaris-guiexpand",
   "name": "GUI host",
   "version": "0.1.0",
   "description": "Draws the panels of other plugins and of mods in the game, with the engine's own Dear ImGui: a C interface for plugins, script-declared panels for mods, and a reference skin (status capsule and deck).",
-  "dll": "guidll.dll",
+  "dll": "stellaris_guiexpand.dll",
   "game": { "exe_timestamps": ["0x6ABEAA3F"] },
   "load": { "wait": "window", "delay_ms": 1500 },
   "config": [
-    { "file": "guidll.ini", "default": "defaults/guidll.ini", "title": "GUI host", "substitute": false }
+    { "file": "stellaris_guiexpand.ini", "default": "defaults/stellaris_guiexpand.ini", "title": "GUI host", "substitute": false }
   ],
-  "update": { "github": "Yidhar/guidll", "asset": "guidll-v*.zip" },
-  "homepage": "https://github.com/Yidhar/guidll"
+  "update": { "github": "Yidhar/stellaris-guiexpand", "asset": "stellaris-guiexpand-v*.zip" },
+  "homepage": "https://github.com/Yidhar/stellaris-guiexpand"
 }

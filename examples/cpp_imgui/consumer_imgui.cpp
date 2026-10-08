@@ -1,4 +1,4 @@
-// Example plugin: a plugin with its OWN copy of Dear ImGui (built with /MT) that draws a panel through guidll.
+// Example plugin: a plugin with its OWN copy of Dear ImGui (built with /MT) that draws a panel through stellaris-guiexpand.
 // For the experiments: lines in consumer_<tag>.cmd next to the DLL (fault / leak); unload events Local\gui_consumer_<tag>_unload_<pid> (unregisters first) and
 // Local\gui_consumer_<tag>_rude_<pid> (just leaves, as a crashed or force-unloaded plugin would). Both are development aids: a real plugin never unloads.
 #include <windows.h>
@@ -113,9 +113,9 @@ void Draw(const StlGuiCallbackCtx* c, void*) {
         ImGui::TextDisabled("not in a game");
     }
     ImGui::Separator();
-    if (ImGui::Button("effect state")) g_effect_state = g_api->effect_state("guidll_test_grant_energy", g_effect_reason, sizeof(g_effect_reason));
+    if (ImGui::Button("effect state")) g_effect_state = g_api->effect_state("guiexpand_test_grant_energy", g_effect_reason, sizeof(g_effect_reason));
     ImGui::SameLine();
-    if (ImGui::Button("post guidll_test_grant_energy")) g_api->post_effect("guidll_test_grant_energy");
+    if (ImGui::Button("post guiexpand_test_grant_energy")) g_api->post_effect("guiexpand_test_grant_energy");
     if (g_effect_state != -2) ImGui::Text("state %d  %s", g_effect_state, g_effect_reason);
     ImGuiIO& io = ImGui::GetIO();
     ImGui::Text("mouse captured by ImGui: %d", (int)io.WantCaptureMouse);

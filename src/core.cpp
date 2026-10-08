@@ -2,7 +2,7 @@
 // the log and the settings. Everything here runs on the game's main thread unless noted.
 #include "internal.h"
 
-namespace guidll {
+namespace guiexpand {
 
 uintptr_t g_base = 0;
 HMODULE g_module = nullptr;
@@ -57,7 +57,7 @@ SRWLOCK g_log_lock = SRWLOCK_INIT;  // panels register from the threads of other
 void OpenLog() {
     const std::wstring dir = PluginDir() + L"logs\\";
     CreateDirectoryW(dir.c_str(), nullptr);
-    const std::wstring path = dir + L"guidll.log";
+    const std::wstring path = dir + L"stellaris_guiexpand.log";
     WIN32_FILE_ATTRIBUTE_DATA a;
     if (GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &a) && a.nFileSizeLow > (1u << 20)) {  // keep the last megabyte-sized log as .old
         MoveFileExW(path.c_str(), (path + L".old").c_str(), MOVEFILE_REPLACE_EXISTING);
@@ -88,16 +88,16 @@ void Log(const char* fmt, ...) {
 
 Config g_cfg;
 void LoadConfig() {
-    const std::wstring ini = PluginDir() + L"config\\guidll.ini";
-    auto flag = [&](const wchar_t* key, bool def) { return GetPrivateProfileIntW(L"guidll", key, def ? 1 : 0, ini.c_str()) != 0; };
+    const std::wstring ini = PluginDir() + L"config\\stellaris_guiexpand.ini";
+    auto flag = [&](const wchar_t* key, bool def) { return GetPrivateProfileIntW(L"guiexpand", key, def ? 1 : 0, ini.c_str()) != 0; };
     g_cfg.deck = flag(L"deck", true);
     g_cfg.deck_open = flag(L"deck_open", false);
     g_cfg.stars = flag(L"stars", true);
-    g_cfg.theme = std::clamp((int)GetPrivateProfileIntW(L"guidll", L"theme", 0, ini.c_str()), 0, 3);
+    g_cfg.theme = std::clamp((int)GetPrivateProfileIntW(L"guiexpand", L"theme", 0, ini.c_str()), 0, 3);
     g_cfg.dev_commands = flag(L"dev_commands", false);
     g_cfg.dev_unload = flag(L"dev_unload", false);
     wchar_t dirs[2048] = {};
-    GetPrivateProfileStringW(L"guidll", L"extra_mod_dirs", L"", dirs, (DWORD)std::size(dirs), ini.c_str());
+    GetPrivateProfileStringW(L"guiexpand", L"extra_mod_dirs", L"", dirs, (DWORD)std::size(dirs), ini.c_str());
     g_cfg.extra_mod_dirs.clear();
     std::wstring all = dirs;
     for (size_t at = 0; at < all.size();) {
@@ -627,4 +627,4 @@ void CompleteScriptLog() {
         }
 }
 
-}  // namespace guidll
+}  // namespace guiexpand

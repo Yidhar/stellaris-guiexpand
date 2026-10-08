@@ -1,8 +1,8 @@
 // What other plugins see of the host: the panel registry (registration from any thread), the C drawing table, and the dispatch of their draw
-// callbacks with fault isolation. The public interface is include/guidll/stellaris_gui_api.h.
+// callbacks with fault isolation. The public interface is include/stellaris_guiexpand/stellaris_gui_api.h.
 #include "internal.h"
 
-namespace guidll {
+namespace guiexpand {
 namespace {
 
 struct HostPanel {
@@ -297,10 +297,10 @@ void PanelCommand(const char* id, int visible) {
 
 const StlGuiApi* HostApi() { return &g_api; }
 
-}  // namespace guidll
+}  // namespace guiexpand
 
 // The one export other plugins look for (GetProcAddress by name). Returns the function table for any API version this host implements.
 extern "C" __declspec(dllexport) const StlGuiApi* StlGui_GetApi(uint32_t requested_version) {
     if (requested_version == 0 || requested_version > STL_GUI_API_VERSION) return nullptr;
-    return guidll::HostApi();
+    return guiexpand::HostApi();
 }

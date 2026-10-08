@@ -1,5 +1,5 @@
 @echo off
-rem Configures and builds guidll.dll and the examples (Visual Studio 2022, x64).
+rem Configures and builds stellaris_guiexpand.dll and the examples (Visual Studio 2022, x64).
 rem   tools\build.bat [path to vcvars64.bat]
 rem Without an argument vcvars64.bat is found with vswhere (the latest Visual Studio with the C++ tools).
 rem Dear ImGui and MinHook are fetched by CMake; to build offline, point FETCHCONTENT_SOURCE_DIR_IMGUI / FETCHCONTENT_SOURCE_DIR_MINHOOK at local checkouts
@@ -26,4 +26,4 @@ if not "%FETCHCONTENT_SOURCE_DIR_MINHOOK%"=="" set "EXTRA=%EXTRA% -DFETCHCONTENT
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 %EXTRA% || exit /b 1
 cmake --build build --config Release --parallel || exit /b 1
 echo.
-echo plugin folder: %CD%\build\plugin\guidll
+echo plugin folder: %CD%\build\plugin\stellaris-guiexpand

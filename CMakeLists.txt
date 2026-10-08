@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 cmake_policy(SET CMP0091 NEW)
-project(Guidll LANGUAGES C CXX)
+project(StellarisGuiExpand LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # inherit it. Nothing owned by one plugin is freed by another: the public interface passes no ownership across the DLL boundary.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 
-option(GUIDLL_BUILD_EXAMPLES "Build the example plugins (examples/)" ON)
+option(GUIEXPAND_BUILD_EXAMPLES "Build the example plugins (examples/)" ON)
 
 include(FetchContent)
 
@@ -35,8 +35,8 @@ set(IMGUI_SOURCES
     ${imgui_SOURCE_DIR}/imgui_tables.cpp
     ${imgui_SOURCE_DIR}/imgui_widgets.cpp)
 
-# ---- guidll.dll: the host
-add_library(guidll SHARED
+# ---- stellaris_guiexpand.dll: the host
+add_library(stellaris_guiexpand SHARED
     src/core.cpp
     src/loc.cpp
     src/host_api.cpp
@@ -45,40 +45,40 @@ add_library(guidll SHARED
     src/imgui_host.cpp
     src/dllmain.cpp
     ${IMGUI_SOURCES})
-target_include_directories(guidll PRIVATE src include ${CMAKE_SOURCE_DIR} ${imgui_SOURCE_DIR})
-target_link_libraries(guidll PRIVATE minhook)
-target_compile_definitions(guidll PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
+target_include_directories(stellaris_guiexpand PRIVATE src include ${CMAKE_SOURCE_DIR} ${imgui_SOURCE_DIR})
+target_link_libraries(stellaris_guiexpand PRIVATE minhook)
+target_compile_definitions(stellaris_guiexpand PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 if (MSVC)
-    target_compile_options(guidll PRIVATE /utf-8)
+    target_compile_options(stellaris_guiexpand PRIVATE /utf-8)
 endif()
-set_target_properties(guidll PROPERTIES PREFIX "")
+set_target_properties(stellaris_guiexpand PROPERTIES PREFIX "")
 
 # The plugin folder as the launcher expects it (docs/PLUGINS.md of the launcher): stl-plugin.json, the DLL, defaults\.
-# build\plugin\guidll can be installed or linked with `stl plugin install [--link] build\plugin\guidll`.
-set(GUIDLL_PLUGIN_DIR "${CMAKE_BINARY_DIR}/plugin/guidll")
-add_custom_target(guidll_plugin ALL
-    COMMAND ${CMAKE_COMMAND} -E make_directory "${GUIDLL_PLUGIN_DIR}/defaults"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:guidll>" "${GUIDLL_PLUGIN_DIR}/"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/plugin/stl-plugin.json" "${GUIDLL_PLUGIN_DIR}/"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/plugin/defaults/guidll.ini" "${GUIDLL_PLUGIN_DIR}/defaults/"
-    DEPENDS guidll
-    COMMENT "Assembling ${GUIDLL_PLUGIN_DIR}")
+# build\plugin\stellaris-guiexpand can be installed or linked with `stl plugin install [--link] build\plugin\stellaris-guiexpand`.
+set(GUIEXPAND_PLUGIN_DIR "${CMAKE_BINARY_DIR}/plugin/stellaris-guiexpand")
+add_custom_target(stellaris_guiexpand_plugin ALL
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${GUIEXPAND_PLUGIN_DIR}/defaults"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "$<TARGET_FILE:stellaris_guiexpand>" "${GUIEXPAND_PLUGIN_DIR}/"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/plugin/stl-plugin.json" "${GUIEXPAND_PLUGIN_DIR}/"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/plugin/defaults/stellaris_guiexpand.ini" "${GUIEXPAND_PLUGIN_DIR}/defaults/"
+    DEPENDS stellaris_guiexpand
+    COMMENT "Assembling ${GUIEXPAND_PLUGIN_DIR}")
 
 # ---- example plugins: what another developer's plugin looks like (docs/developers.md)
-if (GUIDLL_BUILD_EXAMPLES)
+if (GUIEXPAND_BUILD_EXAMPLES)
     # a plugin with its own Dear ImGui (same version, same configuration as the engine's)
     add_library(example_imgui SHARED examples/cpp_imgui/consumer_imgui.cpp ${IMGUI_SOURCES})
-    target_include_directories(example_imgui PRIVATE include include/guidll ${imgui_SOURCE_DIR})
+    target_include_directories(example_imgui PRIVATE include include/stellaris_guiexpand ${imgui_SOURCE_DIR})
     target_compile_definitions(example_imgui PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS CONSUMER_TAG="imgui")
 
     # the same plugin built with 32-bit draw indices: it must refuse to draw instead of corrupting the shared context
     add_library(example_imgui_badcfg SHARED examples/cpp_imgui/consumer_imgui.cpp ${IMGUI_SOURCES})
-    target_include_directories(example_imgui_badcfg PRIVATE include include/guidll ${imgui_SOURCE_DIR})
+    target_include_directories(example_imgui_badcfg PRIVATE include include/stellaris_guiexpand ${imgui_SOURCE_DIR})
     target_compile_definitions(example_imgui_badcfg PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS "ImDrawIdx=unsigned int" CONSUMER_TAG="badcfg")
 
     # a plugin without any ImGui: plain C through StlGuiUi
     add_library(example_c SHARED examples/c/consumer_c.c)
-    target_include_directories(example_c PRIVATE include include/guidll)
+    target_include_directories(example_c PRIVATE include include/stellaris_guiexpand)
     target_compile_definitions(example_c PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 
     foreach(t example_imgui example_imgui_badcfg example_c)

@@ -2,7 +2,7 @@
 
     python tools/check_plugin.py [--dir FOLDER] [--tag vX.Y.Z] [--release]
 
-Without --dir the sources are checked (plugin/ and sdk/); with --dir a folder as it is installed: a build\\plugin\\guidll
+Without --dir the sources are checked (plugin/ and sdk/); with --dir a folder as it is installed: a build\\plugin\\stellaris-guiexpand
 or an unpacked release zip, where the DLL has to be there too. Checks:
   * stl-plugin.json is schema 2, has a valid id, a dll path inside the folder, and the config entries point at files
     that exist in the folder, one per name, without sub-folders;
@@ -75,16 +75,16 @@ def main():
         if not c.get("title"):
             bad(f"config {name}: title is missing")
     # the launcher updates the plugin from the latest GitHub release: the asset pattern has to pick the plugin zip and
-    # not the SDK zip (guidll-sdk-v<version>.zip), which starts with the same words
+    # not the SDK zip (stellaris-guiexpand-sdk-v<version>.zip), which starts with the same words
     upd = m.get("update")
     if upd:
         if not re.fullmatch(r"[\w.-]+/[\w.-]+", str(upd.get("github", ""))):
             bad(f"update.github {upd.get('github')!r} is not owner/repo")
         pattern = str(upd.get("asset", "*.zip"))
-        plugin_zip = f"guidll-v{m.get('version')}.zip"
+        plugin_zip = f"stellaris-guiexpand-v{m.get('version')}.zip"
         if not fnmatch.fnmatch(plugin_zip, pattern):
             bad(f"update.asset {pattern!r} does not match the plugin zip {plugin_zip}")
-        if fnmatch.fnmatch(f"guidll-sdk-v{m.get('version')}.zip", pattern):
+        if fnmatch.fnmatch(f"stellaris-guiexpand-sdk-v{m.get('version')}.zip", pattern):
             bad(f"update.asset {pattern!r} also matches the SDK zip")
     if m.get("homepage") and not str(m["homepage"]).startswith(("https://", "http://")):
         bad("homepage must be an http(s) URL")
