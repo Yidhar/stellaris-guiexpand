@@ -48,6 +48,7 @@ namespace rt {
 namespace fn {
     inline constexpr uintptr_t CConsole_RunCommandNow = 0x1B13120;
     inline constexpr uintptr_t CGameState_HandleTurnTick = 0x251800;
+    inline constexpr uintptr_t CGameText_ProcessWithScope = 0x5E9350;
     inline constexpr uintptr_t CInGameIdler_SetGameSpeed = 0x934C50;
     inline constexpr uintptr_t CInGameIdler_SetPaused = 0x935340;
     inline constexpr uintptr_t CPersistentName_BuildString = 0x33B960;

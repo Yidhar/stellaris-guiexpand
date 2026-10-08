@@ -96,7 +96,14 @@ static_assert(sizeof(RawCStr) == 0x30, "CString is 0x30 bytes");
 std::string RdStr(uintptr_t addr);
 std::string StripMarkup(const std::string& in);  // the engine's rich text as plain text
 void CallFreeCString(RawCStr* s);
-std::string TakeCString(RawCStr& t);              // copies the text out (markup stripped) and frees the engine's buffer
+std::string TakeCString(RawCStr& t, bool strip = true);  // copies the text out (rich-text markup stripped unless !strip) and frees the engine's buffer
+bool BuildEngineCString(const std::string& s, RawCStr* out);  // an engine CString holding s; release with CallFreeCString
+struct ScopeHolder {
+    void* cmd = nullptr;     // the command object the engine built the scope in (never posted)
+    uintptr_t scope = 0;     // its CEventScope
+};
+bool AcquirePlayerScope(ScopeHolder* h, std::string* why);  // a CEventScope with the player country as This / From / Root
+void ReleaseScopeHolder(ScopeHolder* h);
 
 // -------------------------------------------------------------------------------------------------------------- game snapshot (core.cpp)
 struct ResInfo {
@@ -165,6 +172,10 @@ void Fmt(char* out, size_t n, double v, bool sign = false);  // 12.3k, 4.5M, +7.
 
 // -------------------------------------------------------------------------------------------------------------------- localisation (loc.cpp)
 std::string LocKey(const std::string& key);  // a loc key through the game's localisation; text with a space, or an unknown key, as written
+// Like LocKey, but the text may contain [Root.some_variable], [Root.GetName] or a scripted_loc, which the engine evaluates for the player's country.
+// Evaluated between turn ticks only (inside one the last value is returned) and again when the game state has changed.
+std::string LocScoped(const std::string& key);
+bool ScopedText(const std::string& raw_text, std::string* out);  // the engine's text processor over `raw_text` for the player's country
 
 // ------------------------------------------------------------------------------------------------------ panels and the interface (host_api.cpp)
 struct PanelOptions {

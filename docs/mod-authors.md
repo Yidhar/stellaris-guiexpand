@@ -97,6 +97,49 @@ badge = { probe = my_flag_is_set  yes = MYMOD_FLAG_ON  no = MYMOD_FLAG_OFF }
 
 Any trigger works this way (flags, technologies, ethics, resource amounts, event targets...).
 
+## Showing values the script computes
+
+Every text of a declared panel (`text`, every `label`, button texts, the two sentences of a `badge`) is a localisation key, and a localisation text may contain the
+game's own `[...]` commands. guidll has the engine evaluate them, for **the player's country** (`This`, `From` and `Root` all mean the player's country), so a panel
+can show what your script computes:
+
+![A declared panel showing a country name, a stored variable, a scripted_loc and a script value](images/scoped_panel.png)
+
+| In the `.yml` | Shows |
+|---|---|
+| `"Empire: [Root.GetName]"` | the country's name (and the other text commands the game knows for a country) |
+| `"Counter: [Root.my_counter]"` | a **stored variable** of the country; empty until your script has set it |
+| `"[Root.MyFlagText]"` | a **scripted_loc**: `defined_text = { name = MyFlagText ... }` of `common/scripted_loc`, the text chosen by triggers |
+| `"Value: [Root.MyValue]"` | a **script value**, through a scripted_loc: `defined_text = { name = MyValue  value = value:my_script_value }` |
+
+This is the test mod's panel (`guidll-test-mod`), all four lines tested in the game:
+
+```
+# common/script_values/guidll_test.txt
+guidll_test_value = { base = 10  modifier = { add = 5  has_country_flag = guidll_test_marked } }
+
+# common/scripted_loc/guidll_test.txt
+defined_text = { name = GuidllTestValue  value = value:guidll_test_value }
+defined_text = {
+    name = GuidllTestFlag
+    text = { trigger = { has_country_flag = guidll_test_marked }  localization_key = guidll_test_flag_on }
+    default = guidll_test_flag_off
+}
+
+# localisation/english/guidll_test_l_english.yml
+ GUIDLL_TEST_SC_COUNTER:0 "Counter (a stored variable): [Root.guidll_test_counter]"
+ GUIDLL_TEST_SC_FLAG:0 "Flag (a scripted_loc): [Root.GuidllTestFlag]"
+ GUIDLL_TEST_SC_VALUE:0 "Script value: [Root.GuidllTestValue]"
+```
+
+Things to know:
+
+- The value is taken **between turn ticks** and again whenever the game state has changed, so it follows your script (a button effect that changes a variable shows up within a moment, also in a paused game).
+- You get **text**, not numbers: use the formatting you want in the `.yml` or in the `scripted_loc`.
+- Only the player's country is the scope. The selected planet or fleet is not available yet.
+- A key whose text contains no `[` costs nothing extra. Evaluating one costs about a microsecond.
+- It is the engine's own text processor, so everything the game's localisation does with a country scope works here, and what it does not, does not. How the engine reacts to a **mistake** in a command (`[Root.nonsense]`) has not been tested.
+
 ## Localisation
 
 Titles, texts and labels are keys of your `localisation/<language>/*.yml`, looked up by the game's own localisation, so the language setting is followed and your

@@ -101,6 +101,16 @@ int ApiPostEffect(const char* key) {
 void ApiSetSpeed(int speed) { g_pending.push_back({ Pending::Speed, speed, {} }); }
 void ApiSetPaused(int paused) { g_pending.push_back({ Pending::Pause, paused ? 1 : 0, {} }); }
 void ApiLog(const char* plugin, const char* line) { Log("[%s] %s", plugin ? plugin : "?", line ? line : ""); }
+int ApiLocalize(const char* key, char* out, uint32_t cap) {
+    if (!out || !cap) return 0;
+    out[0] = 0;
+    if (!key || !*key) return 0;
+    const std::string s = LocScoped(key);
+    const size_t n = std::min<size_t>(s.size(), cap - 1);
+    memcpy(out, s.data(), n);
+    out[n] = 0;
+    return (int)n;
+}
 
 // the C drawing wrappers (a plugin without any ImGui of its own draws through these)
 void UiText(const char* s) { ImGui::TextUnformatted(s ? s : ""); }
@@ -140,7 +150,7 @@ void UiText2(float x, float y, uint32_t c, const char* s) { ImGui::GetWindowDraw
 const StlGuiUi g_ui = { sizeof(StlGuiUi), 0,  UiText,   UiTextColored, UiButton,  UiCheckbox, UiSlider, UiSameLine, UiSeparator,
                         UiProgress,       UiTooltip, UiCursor, UiAvail, UiDummy,  UiLine,     UiRect,   UiCircle,   UiText2 };
 const StlGuiApi g_api = { sizeof(StlGuiApi), STL_GUI_API_VERSION, sdk::kExeTimestamp, 0, ApiRegisterPanel, ApiUnregisterPanel, ApiGetSnapshot,
-                          ApiEffectState,    ApiPostEffect,       ApiSetSpeed,        ApiSetPaused, ApiLog };
+                          ApiEffectState,    ApiPostEffect,       ApiSetSpeed,        ApiSetPaused, ApiLog, ApiLocalize };
 
 // A callback that raises an exception must not take the game down, and one that leaves ImGui's stacks unbalanced (a Begin without End, a
 // pushed colour never popped) must not break the frame of everybody after it: the stacks are put back to where they were.

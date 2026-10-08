@@ -236,13 +236,13 @@ void DrawDeclNode(const SNode& n, int depth) {
     if (n.key == "row" && n.block) {
         DrawDeclBlock(n, true, depth);
     } else if (n.key == "text" && n.block) {
-        ImGui::TextWrapped("%s", LocKey(ValOf(n, "text")).c_str());
+        ImGui::TextWrapped("%s", LocScoped(ValOf(n, "text")).c_str());
     } else if (n.key == "separator") {
         ImGui::Separator();
     } else if (n.key == "spacer") {
         ImGui::Dummy(ImVec2(0, (float)atof(n.value.c_str())));
     } else if (n.key == "date" && n.block) {
-        ImGui::Text("%s  %04u.%02u.%02u", LocKey(ValOf(n, "label")).c_str(), g_snap.year, g_snap.month, g_snap.day);
+        ImGui::Text("%s  %04u.%02u.%02u", LocScoped(ValOf(n, "label")).c_str(), g_snap.year, g_snap.month, g_snap.day);
     } else if (n.key == "stat" && n.block) {
         bool known;
         const double v = StatValue(ValOf(n, "stat"), &known);
@@ -250,16 +250,16 @@ void DrawDeclNode(const SNode& n, int depth) {
         char t[32];
         if (st == "colonies" || st == "pops" || st == "empire_size") snprintf(t, sizeof(t), "%.0f", v);
         else Fmt(t, sizeof(t), v);
-        ImGui::Text("%s  %s", LocKey(ValOf(n, "label")).c_str(), known ? t : "?");
+        ImGui::Text("%s  %s", LocScoped(ValOf(n, "label")).c_str(), known ? t : "?");
     } else if (n.key == "value" && n.block) {
         const ResInfo* r = FindRes(ValOf(n, "resource").c_str());
         const std::string show = ValOf(n, "show", "stock");
         char t[32] = "?";
         if (r) Fmt(t, sizeof(t), show == "net" ? r->net : show == "income" ? r->income : show == "expense" ? r->expense : show == "max" ? r->max : r->stock, show == "net");
-        ImGui::Text("%s  %s", LocKey(ValOf(n, "label")).c_str(), t);
+        ImGui::Text("%s  %s", LocScoped(ValOf(n, "label")).c_str(), t);
     } else if (n.key == "gauge" && n.block) {
         const ResInfo* r = FindRes(ValOf(n, "resource").c_str());
-        ImGui::TextUnformatted(LocKey(ValOf(n, "label")).c_str());
+        ImGui::TextUnformatted(LocScoped(ValOf(n, "label")).c_str());
         char t[48] = "?";
         float frac = 0.f;
         if (r) {
@@ -277,12 +277,12 @@ void DrawDeclNode(const SNode& n, int depth) {
         ImGui::GetWindowDrawList()->AddCircleFilled(ImVec2(p.x + 6, p.y + ImGui::GetTextLineHeight() * 0.5f), 4.5f, col, 12);
         ImGui::Dummy(ImVec2(16, ImGui::GetTextLineHeight()));
         ImGui::SameLine();
-        ImGui::TextUnformatted(LocKey(ValOf(n, e.valid ? "yes" : "no")).c_str());
+        ImGui::TextUnformatted(LocScoped(ValOf(n, e.valid ? "yes" : "no")).c_str());
     } else if (n.key == "button" && n.block) {
         const std::string effect = ValOf(n, "effect");
         const EffCache& e = EffState(effect);
         if (!e.valid) ImGui::BeginDisabled();
-        const bool clicked = ImGui::Button(LocKey(ValOf(n, "text", effect.c_str())).c_str());
+        const bool clicked = ImGui::Button(LocScoped(ValOf(n, "text", effect.c_str())).c_str());
         if (!e.valid) ImGui::EndDisabled();
         if (!e.valid && !e.reason.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", e.reason.c_str());
         if (clicked && e.valid) g_pending.push_back({ Pending::Button, 0, effect });

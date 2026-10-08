@@ -183,7 +183,7 @@ void CallFreeCString(RawCStr* s) {
     } __except (EXCEPTION_EXECUTE_HANDLER) {
     }
 }
-std::string TakeCString(RawCStr& t) {
+std::string TakeCString(RawCStr& t, bool strip) {
     std::string out;
     if (t.s.size > 0 && t.s.size < 4096) {
         const char* p = t.s.cap > 15 ? t.s.ptr : t.s.buf;
@@ -191,7 +191,7 @@ std::string TakeCString(RawCStr& t) {
         if (p && Rd(p, tmp, (size_t)t.s.size)) out.assign(tmp, (size_t)t.s.size);
     }
     if (t.s.cap > 15) CallFreeCString(&t);
-    return StripMarkup(out);
+    return strip ? StripMarkup(out) : out;
 }
 bool CallResourceMax(void* res, void* country, int64_t* out) {
     __try {
@@ -453,6 +453,63 @@ bool TokenMatches(uintptr_t vtable, uint32_t token) {
     return *(uint32_t*)(code + 1) == token;
 }
 
+// A CEventScope for the player country (This = From = Root = the country), for engine calls that take one. The engine builds the scope inside
+// a command object; the object is only the holder: it is never posted and is destroyed by ReleaseScopeHolder.
+bool AcquirePlayerScope(ScopeHolder* h, std::string* why) {
+    namespace spec = sdk::cmd::execute_button_effect;
+    *h = ScopeHolder{};
+    if (!g_snap.in_game || g_snap.country_id == 0xFFFFFFFF) {
+        *why = "不在游戏中";
+        return false;
+    }
+    if (!TokenMatches(g_base + spec::kVtableRva, spec::kToken)) {
+        *why = "命令 vtable 与 SDK 不符";
+        return false;
+    }
+    void* cmd = nullptr;
+    if (!CallFactory(g_base + spec::kFactoryRva, &cmd) || !cmd || *(uintptr_t*)cmd != g_base + spec::kVtableRva) {
+        *why = "命令工厂失败";
+        return false;
+    }
+    const uintptr_t scope = (uintptr_t)cmd + spec::scope;
+    // The engine's default CEventScope points root/from/prev at itself; if that is not what we see the layout is not what this code expects.
+    if (RdOr<uintptr_t>(scope + 0x30, 0) != scope || RdOr<uintptr_t>(scope + 0x38, 0) != scope) {
+        CallDestroyCommand(cmd);
+        *why = "CEventScope 布局不符";
+        return false;
+    }
+    // CScopeObjectReference::SetCountry: type 4, id, two zeroed words.
+    *(uint64_t*)(scope + 0x08) = 4;
+    *(uint32_t*)(scope + 0x10) = g_snap.country_id;
+    *(uint64_t*)(scope + 0x14) = 0;
+    *(uint64_t*)(scope + 0x1C) = 0;
+    h->cmd = cmd;
+    h->scope = scope;
+    return true;
+}
+void ReleaseScopeHolder(ScopeHolder* h) {
+    if (h->cmd) CallDestroyCommand(h->cmd);
+    *h = ScopeHolder{};
+}
+
+// An engine CString holding `s`. Texts longer than the inline buffer live in a block of the engine's allocator, so that the engine (and
+// CallFreeCString) can release it; the engine only reads it.
+bool BuildEngineCString(const std::string& s, RawCStr* out) {
+    *out = RawCStr{};
+    if (s.size() <= 15) {
+        memcpy(out->s.buf, s.data(), s.size());
+        out->s.cap = 15;
+    } else {
+        char* heap = (char*)((void* (*)(size_t))(g_base + sdk::kRvaEngineAlloc))(s.size() + 1);
+        if (!heap) return false;
+        memcpy(heap, s.c_str(), s.size() + 1);
+        out->s.ptr = heap;
+        out->s.cap = s.size();
+    }
+    out->s.size = s.size();
+    return true;
+}
+
 // Builds the command for `key` with the player country as This/From/Root, asks the engine whether it is valid and, if `post`, queues it.
 // Returns false when the command could not be built or posted; `valid` / `reason` carry the engine's verdict.
 bool RunButtonEffect(const char* key, bool post, bool* valid, std::string* reason) {
@@ -467,29 +524,10 @@ bool RunButtonEffect(const char* key, bool post, bool* valid, std::string* reaso
         *reason = "未找到 button_effect（测试 mod 没有启用？）";
         return false;
     }
-    if (!TokenMatches(g_base + spec::kVtableRva, spec::kToken)) {
-        *reason = "命令 vtable 与 SDK 不符";
-        return false;
-    }
-    void* cmd = nullptr;
-    if (!CallFactory(g_base + spec::kFactoryRva, &cmd) || !cmd || *(uintptr_t*)cmd != g_base + spec::kVtableRva) {
-        *reason = "命令工厂失败";
-        return false;
-    }
-    const uintptr_t c = (uintptr_t)cmd;
-    const uintptr_t scope = c + spec::scope;
-    // The engine's default CEventScope points root/from/prev at itself; if that is not what we see the layout is not what this code expects.
-    if (RdOr<uintptr_t>(scope + 0x30, 0) != scope || RdOr<uintptr_t>(scope + 0x38, 0) != scope) {
-        CallDestroyCommand(cmd);
-        *reason = "CEventScope 布局不符";
-        return false;
-    }
-    // CScopeObjectReference::SetCountry: type 4, id, two zeroed words.
-    *(uint64_t*)(scope + 0x08) = 4;
-    *(uint32_t*)(scope + 0x10) = g_snap.country_id;
-    *(uint64_t*)(scope + 0x14) = 0;
-    *(uint64_t*)(scope + 0x1C) = 0;
-    *(void**)(c + spec::effect) = effect;
+    ScopeHolder holder;
+    if (!AcquirePlayerScope(&holder, reason)) return false;
+    void* cmd = holder.cmd;
+    *(void**)((uintptr_t)cmd + spec::effect) = effect;
 
     RawCStr why{};
     why.s.cap = 15;

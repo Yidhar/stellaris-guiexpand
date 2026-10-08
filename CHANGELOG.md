@@ -13,6 +13,9 @@ The first version as its own repository. Everything before it was a prototype in
 - The reference skin: status capsule and Command Deck (overview, economy, time, script, settings; four themes).
 - Plugin of the Stellaris launcher (manifest schema 2, settings in `config\guidll.ini`), built for the `stellaris.exe` with PE timestamp `0x6ABEAA3F` (Stellaris 4.5.2).
 - Examples: a plugin with its own ImGui, a plain C plugin.
+- Scoped localisation: every text of a declared panel may contain `[Root.<variable>]`, `[Root.GetName]` or a `scripted_loc` (script values through one), evaluated by the
+  engine for the player's country (`CGameText::ProcessWithScope`); `StlGuiApi::localize` for plugins (appended, API version unchanged). Research: `docs/gui_scoped_localisation.md`
+  in the Stellaris MCP repository.
 
 Differences from the prototype: the plugin id is `guidll` and the log, settings and development files live in the plugin folder (`logs\`, `config\`); the demo button effects
 are `guidll_test_*` and come from the guidll-test-mod repository; the host's panel registry takes the window size and title kind as options instead of knowing about declared panels.

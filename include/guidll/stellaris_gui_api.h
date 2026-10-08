@@ -124,6 +124,15 @@ typedef struct StlGuiApi {
 
     /* one line into the host's log, prefixed with the plugin's id */
     void (*log)(const char* plugin_id, const char* utf8_line);
+
+    /* Appended after the first release: check `size` before using the members below.
+     *
+     * A localisation key of the game (a mod's localisation/*.yml) as display text for the player's country. The text may contain [Root.some_variable],
+     * [Root.GetName] or a scripted_loc, which the engine evaluates (script values included through a scripted_loc `value = value:...`). UTF-8, the
+     * game's rich text markup removed; copies at most cap-1 bytes, always NUL-terminated, returns the number copied (0: nothing to show).
+     * The value is taken between turn ticks and refreshed when the game state has changed, so it is cheap to call every frame. A text containing a
+     * space is returned as written. Only valid inside a draw callback. */
+    int (*localize)(const char* key, char* out, uint32_t cap);
 } StlGuiApi;
 
 /* ---------------------------------------------------------------------------------------- drawing without ImGui (for plugins in any language)

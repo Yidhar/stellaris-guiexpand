@@ -5,7 +5,7 @@
 **Stellaris 4.5.2**（Windows x64，`-dx11` 版）的公共 GUI 宿主。它启动 `stellaris.exe` 里本来就编译进去的 Dear ImGui，在游戏里画面板：
 
 - **插件开发者**用一个很小的 C 接口（`include/guidll/stellaris_gui_api.h`）就能显示面板：C、带或不带自己 ImGui 的 C++、任何能调用 C 函数的语言都行。不用挂钩子，不读引擎内存，游戏更新后也不用重新编译；
-- **mod 作者**在自己 mod 的文本文件里（`interface/stl_gui/*.txt`，用游戏自己的脚本语法）描述一个面板，宿主负责画：带本地化，按钮执行 mod 自己的 `button_effect`。不需要 DLL，不需要编程；
+- **mod 作者**在自己 mod 的文本文件里（`interface/stl_gui/*.txt`，用游戏自己的脚本语法）描述一个面板，宿主负责画：带本地化，能显示 mod 脚本算出来的值（变量、`scripted_loc`、脚本值），按钮执行 mod 自己的 `button_effect`。不需要 DLL，不需要编程；
 - **玩家**在一个地方看到所有已装插件的面板，外加一个可选的参考皮肤：状态胶囊和 *Command Deck*。
 
 它是 **Stellaris 启动器**的一个插件（插件规范 v2），不需要 mod，不改存档。

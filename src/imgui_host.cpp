@@ -30,6 +30,30 @@ void AddFontsToContext();
 void FixPlatformWindowHandle(ImGuiIO& io);
 
 // ---------------------------------------------------------------------------------------------------------------- development commands
+std::vector<std::pair<std::string, std::string>> g_probe_queue;  // ("loc" | "scoped", argument), run outside turn ticks
+
+void RunProbes() {
+    for (const auto& [kind, arg] : g_probe_queue) {
+        if (kind == "loc") {
+            Log("loc %s: plain '%s' | scoped '%s'", arg.c_str(), LocKey(arg).c_str(), LocScoped(arg).c_str());
+        } else if (kind == "scopedbench") {  // the cost of one evaluation of the text, including building and releasing the scope
+            LARGE_INTEGER f, t0, t1;
+            QueryPerformanceFrequency(&f);
+            std::string out;
+            int ok = 0;
+            QueryPerformanceCounter(&t0);
+            for (int i = 0; i < 200; ++i) ok += ScopedText(arg, &out) ? 1 : 0;
+            QueryPerformanceCounter(&t1);
+            Log("scopedbench '%s': %d of 200 ok, %.1f us per evaluation", arg.c_str(), ok, 1e6 * (double)(t1.QuadPart - t0.QuadPart) / (double)f.QuadPart / 200.0);
+        } else {
+            std::string out;
+            const bool ok = ScopedText(arg, &out);
+            Log("scoped '%s' -> %d '%s'", arg.c_str(), (int)ok, out.c_str());
+        }
+    }
+    g_probe_queue.clear();
+}
+
 // logs\guidll.cmd (only with dev_commands = 1): lines such as "deck 1", "tab 3", "post guidll_test_grant_energy", "dump". The file is deleted once run.
 void PollCommandFile() {
     static int n = 0;
@@ -75,6 +99,14 @@ void PollCommandFile() {
                 if (fabs(r.stock) > 0 || fabs(r.net) > 0)
                     Log("  %-22s stock %12.2f  income %9.2f  expense %9.2f  net %9.2f  max %.0f", r.key.c_str(), r.stock, r.income, r.expense, r.net, r.max);
             deck::Dump();
+        } else if (!strcmp(cmd, "loc") || !strcmp(cmd, "scoped") || !strcmp(cmd, "scopedbench")) {
+            // "loc <key>": the plain and the scoped text of a loc key.  "scoped <text with [Root.x]>": the engine's text processor over the rest of
+            // the line. Both read game state, so they run at the next frame outside a turn tick (this file is polled at a fixed frame interval,
+            // which can keep landing inside one).
+            std::string rest(line);
+            rest.erase(0, rest.find(' ') == std::string::npos ? rest.size() : rest.find(' ') + 1);
+            while (!rest.empty() && (rest.back() == '\n' || rest.back() == '\r')) rest.pop_back();
+            g_probe_queue.push_back({ cmd, rest });
         }
     }
     fclose(f);
@@ -137,6 +169,7 @@ void Frame() {
             TakeSnapshot();
             CompleteScriptLog();
         }
+        RunProbes();
     }
 
     // Our style only for our windows: the engine's own ImGui views keep theirs.
@@ -335,17 +368,7 @@ bool RunConsole(const char* line) {
     const size_t n = strlen(line);
     if (console < 0x10000 || n == 0 || n > 255) return false;
     RawCStr cmd{};
-    if (n <= 15) {
-        memcpy(cmd.s.buf, line, n);
-        cmd.s.cap = 15;
-    } else {
-        char* heap = (char*)((void* (*)(size_t))(g_base + sdk::kRvaEngineAlloc))(n + 1);
-        if (!heap) return false;
-        memcpy(heap, line, n + 1);
-        cmd.s.ptr = heap;
-        cmd.s.cap = n;
-    }
-    cmd.s.size = n;
+    if (!BuildEngineCString(line, &cmd)) return false;
     const bool ok = CallRunCommandNow((void*)console, &cmd);
     if (cmd.s.cap > 15) CallFreeCString(&cmd);
     return ok;

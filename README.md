@@ -8,7 +8,8 @@ draws panels inside the game, so that:
 - **plugin developers** can show a panel with a small C interface (`include/guidll/stellaris_gui_api.h`), in C, C++ with or without their own
   ImGui, or any language that can call a C function. They do not hook anything, read no engine memory, and are not rebuilt after a game patch;
 - **mod authors** can describe a panel in a text file inside their mod (`interface/stl_gui/*.txt`, the same script syntax the game uses) and have
-  it drawn, with localisation and buttons that run the mod's own `button_effect`s. No DLL, no programming;
+  it drawn, with localisation, values that the mod's script computes (variables, `scripted_loc`, script values) and buttons that run the mod's own
+  `button_effect`s. No DLL, no programming;
 - **players** get the panels of everything they installed, in one place, plus an optional reference skin: a status capsule and the *Command Deck*.
 
 It is a plugin of the **Stellaris launcher** (plugin spec v2). It needs no mod and does not touch save files.

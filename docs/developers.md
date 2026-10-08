@@ -123,6 +123,7 @@ All through `ctx->api`, inside callbacks:
 | `post_effect(key)` | queue the effect for the next safe moment, through the engine's own command (`CExecuteButtonEffectCommand`), for the player country. Returns 1 when queued. The engine checks it again. Verified in single player |
 | `set_speed(n)` / `set_paused(b)` | the game's own setters, applied between ticks |
 | `log(plugin_id, line)` | a line in guidll's log, prefixed with your id |
+| `localize(key, out, cap)` | *(appended after the first release: check `api->size >= offsetof(StlGuiApi, localize) + sizeof(void*)`)* a localisation key of the game (for example of a mod) as display text for the player's country. The text may contain `[Root.my_variable]`, `[Root.GetName]` or a `scripted_loc`, which the engine evaluates: that is how you show what a mod's script computes. Cheap to call every frame (the value is refreshed between ticks, when the game state changed). Returns the number of bytes copied; a text with a space in it is returned as written |
 
 A button effect can also be a **question**: write an effect with an empty `effect = { }` and any triggers in `potential` / `allow`, and `effect_state` tells
 you whether they hold. This is how a mod exposes "is this flag set?" or "has the player this technology?" without you reading any memory.
