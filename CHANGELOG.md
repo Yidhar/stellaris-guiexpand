@@ -12,7 +12,9 @@ Added on the way to the component library (`stellaris-argon-ui`), all append-onl
   content through the host, with the protection of a panel (three faults disable an element). A missing element is a dim note and a log line (`stl_gui_requires` names what to install).
 - **Theme** shared by everything (`ctx->theme`, `theme_info`, `set_theme`), more in the callback context (`ui_scale`, `fit`, `delta_time`, `time`, `font_title`, `font_numbers_large`), snapshot
   appended with income / expense, the countries' figures and the galaxy's strongest values, `get_history`, `panel_visibility`.
-- **Declared panels**: `kind = hud` with `anchor` / `offset`, `hotkey`, `open = no`.
+- **Declared panels**: `kind = hud` with `anchor` / `offset`, `hotkey`, `open = no`, `movable = yes`.
+- **Characters**: the font atlas is built once, so it gets the characters of the localisation of the active mods that declare panels, the game's `concepts*.yml` and the names of the game's resources
+  in the player's language (a rare character such as the 珞 of Zro showed as `?` before).
 - `examples/element`: a plugin with seven elements in plain C; the test mod has a panel and a HUD that use them.
 
 The first version as its own repository. Everything before it was a prototype inside the Stellaris MCP repository (`docs/gui_probe/`).

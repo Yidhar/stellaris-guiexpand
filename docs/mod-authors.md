@@ -192,7 +192,7 @@ A value that contains a space, or a key the game does not know, is shown as writ
 
 **Characters.** The engine builds its font atlas once, when the ImGui starts, and cannot add glyphs later. So stellaris-guiexpand puts into the atlas the common Chinese
 characters, Latin, the characters of its own UI, and **every character of the localisation files (`.yml`) of the mods in the active playset that have an `interface\stl_gui` folder**,
-and of the game's own `concepts*.yml` (the names of resources). A character that exists only in some other mod's texts, or outside the Basic Multilingual Plane (emoji), may still show as `?`.
+and of the game's own names of what the components show: `concepts*.yml` of every language and, in the language the player plays in (`settings.txt`), the lines that define a resource of `common/strategic_resources`. A character that exists only in some other mod's texts, or outside the Basic Multilingual Plane (emoji), may still show as `?`.
 
 ## What happens when something is wrong
 

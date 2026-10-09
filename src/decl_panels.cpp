@@ -136,6 +136,20 @@ std::vector<std::pair<std::string, std::wstring>> EnabledMods() {
 
 void DrawDeclPanel(const StlGuiCallbackCtx* ctx, void* user);
 
+// the non-ASCII code points of `n` bytes of UTF-8, added to `out` (ImGui's glyph ids are 16 bits here: nothing above the BMP)
+void AddUtf8Chars(const char* text, size_t size, std::set<uint32_t>& out) {
+    for (size_t i = 0; i < size;) {
+        const unsigned char c = (unsigned char)text[i];
+        const int n = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 1;
+        if (c >= 0x80 && n > 1 && i + n <= size) {
+            uint32_t cp = c & (0xFF >> (n + 1));
+            for (int k = 1; k < n; ++k) cp = (cp << 6) | ((unsigned char)text[i + k] & 0x3F);
+            if (cp > 0x7F && cp <= 0xFFFF) out.insert(cp);
+        }
+        i += n;
+    }
+}
+
 // the non-ASCII code points of every .yml under `dir` (UTF-8), added to `out`
 void CollectLocChars(const std::wstring& dir, std::set<uint32_t>& out, int depth = 0, const wchar_t* prefix = nullptr) {  // prefix: only files that start with it
     if (depth > 4) return;
@@ -149,16 +163,68 @@ void CollectLocChars(const std::wstring& dir, std::set<uint32_t>& out, int depth
             CollectLocChars(dir + L"\\" + name, out, depth + 1, prefix);
         } else if (name.size() > 4 && _wcsicmp(name.c_str() + name.size() - 4, L".yml") == 0 && (!prefix || _wcsnicmp(name.c_str(), prefix, wcslen(prefix)) == 0)) {
             const std::string text = ReadWholeFile(dir + L"\\" + name);
-            for (size_t i = 0; i < text.size();) {
-                const unsigned char c = (unsigned char)text[i];
-                int n = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 1;
-                if (c >= 0x80 && n > 1 && i + n <= text.size()) {
-                    uint32_t cp = c & (0xFF >> (n + 1));
-                    for (int k = 1; k < n; ++k) cp = (cp << 6) | ((unsigned char)text[i + k] & 0x3F);
-                    if (cp > 0x7F && cp <= 0xFFFF) out.insert(cp);  // ImGui's glyph ids are 16 bits here
-                }
-                i += n;
+            AddUtf8Chars(text.data(), text.size(), out);
+        }
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+}
+
+// The keys of the game's resources: the top-level names of common/strategic_resources/*.txt, in the base game and in every DLC folder
+std::set<std::string> GameResourceKeys(const std::wstring& game) {
+    std::set<std::string> keys;
+    std::vector<std::wstring> dirs = { game + L"common\\strategic_resources\\" };
+    WIN32_FIND_DATAW fd;
+    if (HANDLE h = FindFirstFileW((game + L"dlc\\*").c_str(), &fd); h != INVALID_HANDLE_VALUE) {
+        do {
+            if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && fd.cFileName[0] != L'.') dirs.push_back(game + L"dlc\\" + fd.cFileName + L"\\common\\strategic_resources\\");
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+    }
+    for (const std::wstring& d : dirs) {
+        HANDLE h = FindFirstFileW((d + L"*.txt").c_str(), &fd);
+        if (h == INVALID_HANDLE_VALUE) continue;
+        do {
+            const std::vector<Tok> toks = LexScript(ReadWholeFile(d + fd.cFileName));
+            SNode root;
+            size_t p = 0;
+            if (!ParseScriptBlock(toks, p, root, 0)) continue;
+            for (const SNode& k : root.kids)
+                if (k.block && !k.key.empty() && k.key[0] != '@') keys.insert(k.key);
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+    }
+    return keys;
+}
+
+// The language the player chose: `language="l_simp_chinese"` in the game's settings.txt, as the name of the folder under localisation\ ("simp_chinese")
+std::wstring PlayerLanguageDir() {
+    const std::string text = ReadWholeFile(StellarisDocs() + L"settings.txt");
+    const size_t at = text.find("language=\"l_");
+    if (at == std::string::npos) return {};
+    const size_t from = at + 12, to = text.find('"', from);
+    return to == std::string::npos ? std::wstring() : Utf8ToWide(text.substr(from, to - from));
+}
+
+// Characters of the values of the lines `<key>: "..."` and `concept_<key>: "..."` for the given keys, in every .yml under `dir`. A resource's name is defined
+// under its own key in some file of the game's localisation (sr_zro: "..." is in main_2_l_*.yml), and as a concept in another.
+void CollectKeyedLocChars(const std::wstring& dir, const std::set<std::string>& keys, std::set<uint32_t>& out) {
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW((dir + L"\\*.yml").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        const std::string text = ReadWholeFile(dir + L"\\" + fd.cFileName);
+        for (size_t line = 0; line < text.size();) {
+            size_t end = text.find('\n', line);
+            if (end == std::string::npos) end = text.size();
+            size_t k = line;
+            while (k < end && (text[k] == ' ' || text[k] == '\t')) ++k;
+            const size_t colon = text.find(':', k);
+            if (colon != std::string::npos && colon < end) {
+                std::string key = text.substr(k, colon - k);
+                if (key.compare(0, 8, "concept_") == 0) key.erase(0, 8);
+                if (keys.count(key)) AddUtf8Chars(text.data() + colon, end - colon, out);
             }
+            line = end + 1;
         }
     } while (FindNextFileW(h, &fd));
     FindClose(h);
@@ -461,6 +527,13 @@ std::string ModGlyphText() {
         } while (FindNextFileW(h, &fd));
         FindClose(h);
     }
+    // ... and the resources' own names (not only concepts: 泽珞 is `sr_zro` in main_2_l_simp_chinese.yml), in the language the player plays in
+    size_t named = 0;
+    if (const std::wstring lang = PlayerLanguageDir(); !lang.empty()) {
+        const size_t before = cps.size();
+        CollectKeyedLocChars(game + L"localisation\\" + lang, GameResourceKeys(game), cps);
+        named = cps.size() - before;
+    }
     std::string out;
     for (uint32_t cp : cps) {  // back to UTF-8 (BMP only)
         if (cp < 0x800) {
@@ -472,7 +545,7 @@ std::string ModGlyphText() {
             out += (char)(0x80 | (cp & 0x3F));
         }
     }
-    Log("glyphs: %zu characters from the localisation of %d mod(s) that declare panels and the game's concept names", cps.size(), mods);
+    Log("glyphs: %zu characters from the localisation of %d mod(s) that declare panels, the game's concept names and its resource names (%zu of them only from resources)", cps.size(), mods, named);
     return out;
 }
 
