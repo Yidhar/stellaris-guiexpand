@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-09)
 
 The Command Deck (a status capsule and a five-page window) that the first prototype drew itself is **not part of the host any more**: it is rebuilt from declarations with the
 components of stellaris-argon-ui (`examples/command-deck` in that repository), which shows that a mod can do it without a DLL. The host keeps only what a component needs:
