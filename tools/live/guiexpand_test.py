@@ -10,12 +10,12 @@ window) and the launcher's `stl inject`. Set the paths below (environment variab
     python tools/live/guiexpand_test.py stage                    copy build/plugin/stellaris-guiexpand and the examples into the run folder (dev_commands on)
     python tools/live/guiexpand_test.py load                     restart the game on the test save (mods are read at start)
     python tools/live/guiexpand_test.py bench "pause 0" "speed 3"   commands for the bench DLL, to get ticks going before the ImGui is up
-    python tools/live/guiexpand_test.py inject host|imgui|badcfg|c   inject one of the staged DLLs (examples first, host last or first: both orders work)
-    python tools/live/guiexpand_test.py cmd "tab 3" "post guiexpand_test_grant_energy"   lines for the host's logs\\stellaris_guiexpand.cmd
+    python tools/live/guiexpand_test.py inject host|imgui|badcfg|c|element   inject one of the staged DLLs (examples first, host last or first: both orders work)
+    python tools/live/guiexpand_test.py cmd "panel list" "post guiexpand_test_grant_energy"   lines for the host's logs\\stellaris_guiexpand.cmd
     python tools/live/guiexpand_test.py excmd imgui "fault"      a line for an example's consumer_<tag>.cmd
     python tools/live/guiexpand_test.py log [n] | exlog <tag> [n]   tail of the host's / an example's log
     python tools/live/guiexpand_test.py shot out.png            screenshot of the game window's client area
-    python tools/live/guiexpand_test.py unload host|imgui|badcfg|c  development unload by event (host needs dev_unload=1)
+    python tools/live/guiexpand_test.py unload host|imgui|badcfg|c|element  development unload by event (host needs dev_unload=1)
 """
 import ctypes
 import ctypes.wintypes as w
@@ -38,6 +38,7 @@ DLLS = {  # name -> (built dll, staged folder, event tag, unload event prefix)
     "imgui": ("example_imgui.dll", "ex_imgui", "imgui", "Local\\gui_consumer_imgui_unload_"),
     "badcfg": ("example_imgui_badcfg.dll", "ex_badcfg", "badcfg", "Local\\gui_consumer_badcfg_unload_"),
     "c": ("example_c.dll", "ex_c", "c", "Local\\gui_consumer_c_unload_"),
+    "element": ("example_element.dll", "ex_element", "element", "Local\\gui_element_unload_"),
 }
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -72,7 +73,7 @@ def stage():
         shutil.copyfile(built, os.path.join(d, dll))
     ini = os.path.join(RUN, "stellaris-guiexpand", "config", "stellaris_guiexpand.ini")
     with open(ini, "w", encoding="utf-8") as f:
-        f.write("[guiexpand]\ndeck=1\ndeck_open=0\ntheme=0\nstars=1\ndev_commands=1\ndev_unload=1\n")
+        f.write("[guiexpand]\ntheme=0\ndev_commands=1\ndev_unload=1\n")
     print("staged in", RUN)
 
 

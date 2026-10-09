@@ -4,7 +4,6 @@
 //   loc.cpp          the game's localisation
 //   host_api.cpp     what other plugins see: panel registry, the C drawing table, dispatch with fault isolation, StlGui_GetApi
 //   decl_panels.cpp  panels declared by mods in script files (interface/stl_gui/*.txt)
-//   deck.cpp         the "Command Deck": status capsule and five-page deck, the reference skin
 //   imgui_host.cpp   hooks, fonts, the per-frame entry, start of the engine's ImGui, command file (development)
 //   dllmain.cpp      DllMain
 #pragma once
@@ -22,6 +21,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "imgui.h"
@@ -60,10 +60,7 @@ std::string ReadWholeFile(const std::wstring& path);
 bool FileExistsW(const std::wstring& path);
 
 struct Config {  // <plugin folder>\config\stellaris_guiexpand.ini
-    bool deck = true;            // the Command Deck skin (status capsule and deck); off: the host only
-    bool deck_open = false;      // the deck window itself open at start (the capsule is always there)
-    int theme = 0;               // colour theme of the skin, 0..3
-    bool stars = true;
+    int theme = 0;               // the player's colour theme at the start, 0..3 (changed through the interface: set_theme)
     bool dev_commands = false;   // logs\stellaris_guiexpand.cmd: lines run by the host (tests); off for players
     bool dev_unload = false;     // a named event unloads the DLL (development builds only; the launcher never unloads plugins)
     std::vector<std::wstring> extra_mod_dirs;  // more folders scanned for declaration files (development)
@@ -150,17 +147,6 @@ struct Pending {  // something to do between turn ticks
 extern std::vector<Pending> g_pending;
 void RunPending();
 
-struct ScriptLogEntry {  // a posted script effect and what became of it
-    std::string key, title, result;
-    double time = 0;
-    int64_t tick_posted = 0, serial_posted = 0;
-    bool done = false, ok = false;
-    double energy_before = 0, energy_after = 0;
-    bool energy_known = false;
-};
-extern std::deque<ScriptLogEntry> g_script_log;
-void CompleteScriptLog();  // after a snapshot: entries posted before it are done
-
 // ----------------------------------------------------------------------------------------------------------------- runtime state (core.cpp)
 extern double g_T;                          // ImGui time
 extern float g_DT;                          // frame time
@@ -169,6 +155,18 @@ extern ImFont *g_font_body, *g_font_bold, *g_font_title, *g_font_num, *g_font_nu
 extern ImGuiContext* g_fonts_ctx;           // the context the fonts above belong to
 ImFont* F(ImFont* f);                       // f, or ImGui's current font when f is not usable (no fonts of ours in this context)
 void Fmt(char* out, size_t n, double v, bool sign = false);  // 12.3k, 4.5M, +7.0
+
+// The player's theme: two accent colours per theme, shared with every skin and component through the interface (core.cpp).
+struct ThemeDef {
+    ImU32 a, b;
+    const char* name;
+};
+constexpr int kThemeCount = 4;
+extern const ThemeDef kThemes[kThemeCount];
+extern int g_theme;                                // the current one (settings: theme=)
+extern std::deque<float> g_frame_ms, g_tick_rate;  // the host's own series ("@frame_ms", "@tick_rate" of get_history)
+void FrameStats(float frame_ms, LONG64 ticks);     // once per frame
+int HistorySeries(const char* series, float* out, uint32_t cap);  // get_history: resource stock, "<resource>.net", "@frame_ms", "@tick_rate"
 
 // -------------------------------------------------------------------------------------------------------------------- localisation (loc.cpp)
 std::string LocKey(const std::string& key);  // a loc key through the game's localisation; text with a space, or an unknown key, as written
@@ -182,26 +180,36 @@ struct PanelOptions {
     bool decl = false;           // declared by a mod, not registered by a plugin
     bool title_is_loc = false;   // the title is a loc key
     float w = 360, h = 280;      // first size, in layout pixels
+    bool open = true;            // shown at the start
+    bool hud = false;            // an undecorated window anchored to a screen edge, sized w x h (kind = hud)
+    bool movable = false;        // a hud the player can drag (the anchor is then only its first place)
+    int anchor = 0;              // ANCHOR_* below, for a hud
+    float ox = 0, oy = 0;        // distance from the anchored edge(s), in layout pixels
+    uint32_t hotkey = 0;         // HK_* modifiers | virtual key << 8, 0 for none
 };
+enum { ANCHOR_TOP_LEFT, ANCHOR_TOP_CENTER, ANCHOR_TOP_RIGHT, ANCHOR_LEFT_CENTER, ANCHOR_CENTER, ANCHOR_RIGHT_CENTER, ANCHOR_BOTTOM_LEFT,
+       ANCHOR_BOTTOM_CENTER, ANCHOR_BOTTOM_RIGHT };
+enum { HK_CTRL = 1, HK_SHIFT = 2, HK_ALT = 4 };
+uint32_t ParseHotkey(const std::string& s);               // "ctrl+shift+g" -> modifiers | vk << 8; 0 when it is not a hot key
+int ParseAnchor(const std::string& s);                    // -1 when unknown
+void PollPanelHotkeys();                                  // once per frame: toggles the panels whose hot key was just pressed
 int RegisterPanelInternal(const StlGuiPanelDesc& d, const PanelOptions& o);
 void RetirePanels(bool declared_only);
 void DispatchPanels();                                      // from the frame, main thread
 void PanelCommand(const char* id, int visible);             // development: "list" logs them, else shows / hides the panel
 void DispatchStats(double* us_per_frame, long long* frames);
 const StlGuiApi* HostApi();
+// Elements registered by plugins (host_api.cpp), drawn for the declared entries that are not the host's own (decl_panels.cpp).
+enum class ElementResult { NotRegistered, Drawn, Disabled };
+ElementResult DrawElement(const std::string& name, const StlGuiNode* node, const StlGuiCallbackCtx* ctx);
+std::string ElementProvider(const std::string& name);     // the plugin id the element was registered with ("" when none)
+const StlGuiNodeApi* DeclNodeApi();                       // decl_panels.cpp: the accessors elements read their declaration with
+bool IsBuiltinElement(const std::string& name);           // text separator spacer date value gauge stat badge button row
 
 // ------------------------------------------------------------------------------------------------------- mod-declared panels (decl_panels.cpp)
 void RequestRescan();
+std::string ModGlyphText();  // every non-ASCII character of the localisation of the mods that declare panels (UTF-8), for the font atlas
 void UpdateDeclPanels();  // scans the enabled mods once a game runs, and again when asked to
-
-// ----------------------------------------------------------------------------------------------------------- the Command Deck skin (deck.cpp)
-namespace deck {
-void Frame(const ImGuiIO& io);                 // draws the capsule and the deck (when enabled), inside the host's style
-void FrameStats(float frame_ms, LONG64 ticks); // once per frame, for the time page's graphs
-void Toggle();                                 // the hot key
-bool Command(const char* cmd, int value);      // development commands: deck hud tab theme res eval; true when handled
-void Dump();                                   // development: log the state
-}  // namespace deck
 
 // ----------------------------------------------------------------------------------------------------------------- the ImGui host (imgui_host.cpp)
 bool RunConsole(const char* line);  // one console line, as if typed in the game's console (main thread, not for `imgui off` mid-frame)

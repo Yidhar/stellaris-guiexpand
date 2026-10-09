@@ -54,7 +54,7 @@ void RunProbes() {
     g_probe_queue.clear();
 }
 
-// logs\stellaris_guiexpand.cmd (only with dev_commands = 1): lines such as "deck 1", "tab 3", "post guiexpand_test_grant_energy", "dump". The file is deleted once run.
+// logs\stellaris_guiexpand.cmd (only with dev_commands = 1): lines such as "panel list", "post guiexpand_test_grant_energy", "scan", "dump". The file is deleted once run.
 void PollCommandFile() {
     static int n = 0;
     if (++n % 20) return;
@@ -67,7 +67,6 @@ void PollCommandFile() {
         char cmd[32] = {}, arg[128] = {};
         if (sscanf(line, "%31s %127s", cmd, arg) < 1) continue;
         const int iv = atoi(arg);
-        if (deck::Command(cmd, iv)) continue;
         if (!strcmp(cmd, "scan")) RequestRescan();
         else if (!strcmp(cmd, "panel")) {  // "panel <id> 0/1", "panel list"
             char pid[96] = {};
@@ -98,7 +97,6 @@ void PollCommandFile() {
             for (const auto& r : g_snap.res)
                 if (fabs(r.stock) > 0 || fabs(r.net) > 0)
                     Log("  %-22s stock %12.2f  income %9.2f  expense %9.2f  net %9.2f  max %.0f", r.key.c_str(), r.stock, r.income, r.expense, r.net, r.max);
-            deck::Dump();
         } else if (!strcmp(cmd, "loc") || !strcmp(cmd, "scoped") || !strcmp(cmd, "scopedbench")) {
             // "loc <key>": the plain and the scoped text of a loc key.  "scoped <text with [Root.x]>": the engine's text processor over the rest of
             // the line. Both read game state, so they run at the next frame outside a turn tick (this file is polled at a fixed frame interval,
@@ -111,18 +109,6 @@ void PollCommandFile() {
     }
     fclose(f);
     DeleteFileW(path.c_str());
-}
-
-// Ctrl + Shift + G shows / hides the deck (only while the game window is the foreground window)
-bool g_hotkey_down = false;
-void PollHotkey() {
-    const bool down = (GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState(VK_SHIFT) & 0x8000) && (GetAsyncKeyState('G') & 0x8000);
-    if (down && !g_hotkey_down) {
-        DWORD pid = 0;
-        GetWindowThreadProcessId(GetForegroundWindow(), &pid);
-        if (pid == GetCurrentProcessId()) deck::Toggle();
-    }
-    g_hotkey_down = down;
 }
 
 // ------------------------------------------------------------------------------------------------------------------------- the frame
@@ -157,9 +143,9 @@ void Frame() {
     g_DT = std::clamp(io.DeltaTime, 0.001f, 0.1f);
     g_fit = std::clamp(std::min(io.DisplaySize.x / (1230.f * g_S0), io.DisplaySize.y / (840.f * g_S0)), 0.55f, 1.f);
     g_S = g_S0 * g_fit;
-    deck::FrameStats(io.DeltaTime * 1000.f, g_ticks);
+    FrameStats(io.DeltaTime * 1000.f, g_ticks);
     if (g_cfg.dev_commands) PollCommandFile();
-    PollHotkey();
+    PollPanelHotkeys();
     if (g_tick_depth == 0) {
         RunPending();
         static LONG64 last_frame = 0;
@@ -167,7 +153,6 @@ void Frame() {
             g_force_snapshot_frame = 0;
             last_frame = g_frames_total;
             TakeSnapshot();
-            CompleteScriptLog();
         }
         RunProbes();
     }
@@ -180,7 +165,6 @@ void Frame() {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12 * g_S, 10 * g_S));
     ImGui::PushFont(F(g_font_body));
-    deck::Frame(io);
     UpdateDeclPanels();  // the panels mods declare, scanned once a game runs
     DispatchPanels();    // the panels plugins registered through StlGui_GetApi, and the declared ones
     ImGui::PopFont();
@@ -280,6 +264,8 @@ void AddFontsToContext() {
         c.AddRanges(io.Fonts->GetGlyphRangesChineseSimplifiedCommon());
         c.AddRanges(extra);
         c.AddText(kUiText);
+        const std::string mod_chars = ModGlyphText();  // the text of the mods' declared panels: the atlas cannot take glyphs later
+        c.AddText(mod_chars.c_str());
         c.BuildRanges(&cjk_ranges);
     }
     ImFontConfig base;

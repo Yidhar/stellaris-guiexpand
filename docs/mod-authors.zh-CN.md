@@ -50,6 +50,19 @@ panel = {
 
 一个文件里可以有多个 `panel`，一个 mod 里可以有多个文件。同一个 mod 里两个面板的 id 相同：保留先出现的，后面的被拒绝并写日志。
 
+`panel` 还有这些键：
+
+| 键 | |
+|---|---|
+| `kind = hud` | 不是窗口而是 **HUD**：没有标题栏、没有背景，除非 `movable = yes` 否则不能拖动，由 `anchor` 和 `offset` 定位、`size` 定大小（默认 `kind = window`）。比屏幕宽的 `size` 会缩小到放得下 |
+| `movable = yes` | 用于 HUD：玩家可以拖动它（一开始在 `anchor` 和 `offset` 指定的位置，之后停在放下的地方，直到重启游戏） |
+| `anchor = ...` | HUD 用：`top_left`、`top_center`、`top_right`、`left_center`、`center`、`right_center`、`bottom_left`、`bottom_center`、`bottom_right` |
+| `offset = { x y }` | HUD 用：离所贴边缘向内的像素距离（居中时是离中线的距离） |
+| `hotkey = "ctrl+shift+g"` | 游戏窗口有焦点时，按这个键显示 / 隐藏面板：`ctrl`、`shift`、`alt` 加一个字母、数字、`f1` .. `f12`、`space`、`tab`、`enter`、`esc`。如果机器用 `ctrl+shift` 切换键盘布局，不要用这个组合 |
+| `open = no` | 面板一开始是隐藏的（默认 `yes`） |
+
+文件里可以在 `stl_gui_version` 旁边写 `stl_gui_requires = { 某个插件 id }`：声明这个文件用到哪些插件的元素（见下）。它只是在缺少插件时让提示更清楚。
+
 ### 元素
 
 | 元素 | 显示什么 | 字段 |
@@ -64,8 +77,34 @@ panel = {
 | `badge` | 带颜色的是 / 否 | `probe`（一个 button effect）、`yes` / `no`（本地化键） |
 | `button` | 执行一个 effect 的按钮 | `text`（本地化键）、`effect`（你的 `common/button_effects` 里的键） |
 | `row` | 让里面的 `button` 并排 | 各元素 |
+| *其他任何名字* | **插件的元素**（见下） | 由插件的文档说明 |
 
 数字是**玩家国家**的，在回合 tick 之间取得。
+
+### 插件的元素：组件
+
+插件可以注册更多元素。组件库（一个注册了 `card`、`tabs`、`ring`、`chart`……的插件）的用法和内置元素一样，语法相同，所以面板可以不只是一列标准控件。插件会说明它的元素和插件 id；你把这个 id 写进 `stl_gui_requires`，缺少时玩家就能知道缺什么：
+
+```
+stl_gui_version = 1
+stl_gui_requires = { some-component-plugin }
+
+panel = {
+    id = status
+    title = MYMOD_TITLE
+    content = {
+        card = {                                          # 插件的一个元素
+            title = MYMOD_CARD
+            content = {                                   # 卡片里显示的内容：由宿主画，内置元素和插件的元素都行
+                ring = { resource = energy }              # 同一个插件的另一个元素
+                value = { label = MYMOD_ENERGY  resource = energy  show = net }
+            }
+        }
+    }
+}
+```
+
+插件没装时，这个元素被一条暗淡的 `[card: needs some-component-plugin]` 取代，日志里写一次；周围的元素照常工作。元素崩溃三次后同样被停用（`[card: disabled]`）。
 
 ### 按钮和引擎自己的检查
 
@@ -140,7 +179,7 @@ defined_text = {
 
 含空格的值，或者游戏不认识的键，按原样显示。
 
-**已知限制：字符。** 引擎的字体图集在 ImGui 启动时一次建成，之后不能再加字形。stellaris-guiexpand 的图集里有常用汉字、拉丁字母和它自己界面用到的字符；你的文字里的生僻字可能显示成 `?`。修复办法（在建图集之前扫描已启用 mod 的本地化文件里的字符）已经列入计划。
+**字符。** 引擎的字体图集在 ImGui 启动时一次建成，之后不能再加字形。所以 stellaris-guiexpand 把常用汉字、拉丁字母、它自己界面用到的字符，以及**当前播放集里带 `interface\stl_gui` 文件夹的 mod 的本地化文件（`.yml`）里的每个字符**、再加上游戏自己给组件要显示的东西起的名字里的字符（所有语言的 `concepts*.yml`，以及玩家所用语言（`settings.txt`）里定义了 `common/strategic_resources` 中某个资源的那些行），都放进图集。只出现在别的 mod 文本里的字符、或基本多文种平面之外的字符（emoji），仍然可能显示成 `?`。
 
 ## 出错了会怎样
 
@@ -151,7 +190,8 @@ defined_text = {
 | 语法错误（括号不配对……） | 整个文件被忽略；日志里写出文件名 |
 | 没有 `stl_gui_version = 1` | 文件被忽略；写日志 |
 | 面板没有 `id`，或者 mod 里已有同 id 的面板 | 该面板被忽略；写日志 |
-| 不认识的元素或键 | **悄悄**跳过，这样旧版 stellaris-guiexpand 能读懂新文件的一部分；请自己检查拼写 |
+| 不认识的元素（没人注册的块） | 面板里一条暗淡的 `[name: needs ...]`，日志里写一行；请检查拼写 |
+| 不认识的普通 `key = value` | 悄悄跳过（它可能是外面那个条目的参数） |
 | 不认识的 `effect`（按钮） | 按钮显示为不可用 |
 | 不认识的 `stat` 或 `resource` | 数值显示为 `?` |
 

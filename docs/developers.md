@@ -67,6 +67,9 @@ of four ImGui types (used by the binding below), a table of C drawing functions 
 (`font_body`, `font_bold`, `font_numbers`, as `ImFont*`). The context pointer is passed **on every call**: the engine can restart ImGui and gets a new
 one.
 
+Appended after the first release (check `ctx->size`): `ui_scale` (the host's layout scale: multiply every pixel size you lay out with it), `fit`, `delta_time`, `time` (for animations),
+two more fonts (`font_title`, `font_numbers_large`), `theme` (the player's current colours, see below) and `node` (the accessors for elements, see below).
+
 ## Three ways to draw
 
 | | A: your own ImGui | B: the C table (`ctx->ui`) |
@@ -120,11 +123,14 @@ All through `ctx->api`, inside callbacks:
 
 | Call | |
 |---|---|
-| `get_snapshot(&snap)` | date, speed, pause, the player country's id and name, and up to 32 resources (`key`, `stock`, `net` per month, `max` or `< 0` for no cap). It is taken between turn ticks, so a callback always reads a consistent one; `snap.tick` changes with every tick. Returns 0 before a game is running |
+| `get_snapshot(&snap)` | date, speed, pause, the player country's id and name, and up to 32 resources (`key`, `stock`, `net` per month, `max` or `< 0` for no cap). Appended: `income[]` and `expense[]` per resource, colonies, pops, empire size, the three powers (military, tech, economy) and the strongest empire of the galaxy on each axis. It is taken between turn ticks, so a callback always reads a consistent one; `snap.tick` changes with every tick. Returns 0 before a game is running |
 | `effect_state(key, reason, cap)` | a mod's `common/button_effects` entry: `1` may run now, `0` the engine refuses (the **engine's own reason text** goes to `reason`), `-1` unknown. The engine evaluates `potential` and `allow` |
 | `post_effect(key)` | queue the effect for the next safe moment, through the engine's own command (`CExecuteButtonEffectCommand`), for the player country. Returns 1 when queued. The engine checks it again. Verified in single player |
 | `set_speed(n)` / `set_paused(b)` | the game's own setters, applied between ticks |
 | `log(plugin_id, line)` | a line in stellaris-guiexpand's log, prefixed with your id |
+| `get_history(series, out, cap)` | *(appended)* the last game days of a series, for charts: a resource key (its stock), `"<resource>.net"`, `"@frame_ms"` or `"@tick_rate"`. Returns how many samples |
+| `panel_visibility(panel_id, op)` | *(appended)* show (1), hide (0), toggle (2) or ask (-1) any panel by its id (a declared panel's id is `<mod name>:<id>`) |
+| `theme_info(i, &t)` / `set_theme(i)` | *(appended)* the player's themes and the choice between them |
 | `localize(key, out, cap)` | *(appended after the first release: check `api->size >= offsetof(StlGuiApi, localize) + sizeof(void*)`)* a localisation key of the game (for example of a mod) as display text for the player's country. The text may contain `[Root.my_variable]`, `[Root.GetName]` or a `scripted_loc`, which the engine evaluates: that is how you show what a mod's script computes. Cheap to call every frame (the value is refreshed between ticks, when the game state changed). Returns the number of bytes copied; a text with a space in it is returned as written |
 
 A button effect can also be a **question**: write an effect with an empty `effect = { }` and any triggers in `potential` / `allow`, and `effect_state` tells
@@ -133,9 +139,53 @@ you whether they hold. This is how a mod exposes "is this flag set?" or "has the
 Anything the interface does not offer (fleets, planets, ...) needs you to read engine memory yourself with your own SDK. That is allowed and the host does not
 prevent it; it also means your plugin is tied to a game build again.
 
+## Elements: components for declared panels
+
+A **mod author** declares a panel in a text file (`interface/stl_gui/*.txt`, see [mod-authors.md](mod-authors.md)). Besides the host's own elements (`text`, `value`, `gauge`, `button` ...), your plugin can
+register elements of its own, by name. A declaration that says `ring = { resource = energy }` is then drawn by the plugin that registered `ring`: that is how a **component library** is built, and
+`examples/element/example_element.c` is a small one in plain C.
+
+```c
+static void el_meter(const StlGuiCallbackCtx* c, const StlGuiNode* n, void* user) {
+    const char* key = c->node->value(n, "resource", "energy");     // read the parameters from the declaration
+    c->ui->text_colored(c->theme->text, c->node->text(n, "label", key));  // `text` = a localisation key, evaluated for the player's country
+    // ... draw with c->ui, or with your own ImGui; lay out in pixels times c->ui_scale; colours from c->theme
+}
+
+StlGuiElementDesc d = { sizeof(d) };
+d.name = "meter";  d.provider = "my-plugin";  d.draw = el_meter;
+int handle = api->register_element(&d);   // 0 when the name is empty, taken, or one of the host's own
+```
+
+| The node accessors (`ctx->node`) | |
+|---|---|
+| `key(n)`, `is_block(n)`, `self_value(n)` | the entry itself: `ring` in `ring = { ... }`, whether it has a block, the value of `spacer = 6` |
+| `value(n, key, def)`, `number(n, key, def)` | the value of a child `key = word` |
+| `text(n, key, def)` | a child's value as the text to show: a localisation key through the game's localisation (so `[Root.x]` works), or the text as written. Valid for the next 15 calls |
+| `child(n, key)`, `child_count(n)`, `child_at(n, i)` | the structure: `tab = { ... }` entries, a `content = { ... }` block |
+| `draw_block(block)`, `draw_row(block)`, `draw_node(n)` | draw a block's entries (stacked, or side by side) or one entry with the host's renderer: how a **container** (card, tabs, columns) shows its content, whatever is inside it, the host's elements and other plugins' elements alike |
+
+Rules:
+
+- Names are `lower_snake_case`. The host's own names (`text separator spacer date value gauge stat badge button row`) cannot be taken; a name already registered is refused.
+- Your callback runs inside the panel's window, on the main thread, in the declaration's place in the layout: it uses ImGui's cursor like any widget (`Dummy` to reserve space, `get_cursor_screen_pos` to draw there).
+- It has the same protection as a panel's callback: exceptions caught, ImGui stacks restored, **disabled after three faults** (the panel then shows `[name: disabled]` there and the rest keeps working).
+- When your plugin is not installed, the mod's declaration shows a dim `[name: needs <plugin id>]` note (from the file's `stl_gui_requires`) and one line in the log. Say in your documentation which plugin id a mod author has to ask for.
+- An element is not a panel: it has no window of its own. A component that needs a window (a HUD, a tab bar of its own) registers a panel instead, or the declaration says `kind = hud` (below).
+
+### The theme
+
+`ctx->theme` holds the colours every component should use (`accent`, `accent2`, `text`, `text_dim`, `good`, `bad`, `warn`, `panel`, `border`, as ImGui `ImU32`), so that one choice of the player recolours all of them.
+`api->theme_info(i, &t)` lists the themes and `api->set_theme(i)` picks one (the setting `theme=` of `config\stellaris_guiexpand.ini` is the initial choice).
+
+### What a declaration can ask of the host
+
+Besides elements, a declared panel can be a **HUD** (`kind = hud`, `anchor`, `offset`, `size`: an undecorated window without background, anchored to a screen edge), has a `hotkey` and an initial `open = no`.
+Your plugin does not need to do anything for these; they are for the mod author, see [mod-authors.md](mod-authors.md).
+
 ## Faults are contained
 
-The host protects the game from a misbehaving panel. All measured in game:
+The host protects the game from a misbehaving panel or element. All measured in game:
 
 | Your callback... | The host |
 |---|---|

@@ -3,6 +3,8 @@
 // Grammar and the bindings: docs/mod-authors.md.
 #include <shlobj.h>
 
+#include <set>
+
 #include "internal.h"
 
 namespace guiexpand {
@@ -95,6 +97,7 @@ struct DeclPanel {
     std::string mod, id, title_key;
     SNode content;
     float w = 360, h = 300;
+    std::vector<std::string> requires_;  // stl_gui_requires: plugin ids whose elements the file uses (only for the message of a missing element)
 };
 std::vector<std::shared_ptr<DeclPanel>> g_decl;  // referenced by the panels' user pointer: kept for the process lifetime
 
@@ -133,6 +136,100 @@ std::vector<std::pair<std::string, std::wstring>> EnabledMods() {
 
 void DrawDeclPanel(const StlGuiCallbackCtx* ctx, void* user);
 
+// the non-ASCII code points of `n` bytes of UTF-8, added to `out` (ImGui's glyph ids are 16 bits here: nothing above the BMP)
+void AddUtf8Chars(const char* text, size_t size, std::set<uint32_t>& out) {
+    for (size_t i = 0; i < size;) {
+        const unsigned char c = (unsigned char)text[i];
+        const int n = c < 0x80 ? 1 : (c >> 5) == 6 ? 2 : (c >> 4) == 14 ? 3 : (c >> 3) == 30 ? 4 : 1;
+        if (c >= 0x80 && n > 1 && i + n <= size) {
+            uint32_t cp = c & (0xFF >> (n + 1));
+            for (int k = 1; k < n; ++k) cp = (cp << 6) | ((unsigned char)text[i + k] & 0x3F);
+            if (cp > 0x7F && cp <= 0xFFFF) out.insert(cp);
+        }
+        i += n;
+    }
+}
+
+// the non-ASCII code points of every .yml under `dir` (UTF-8), added to `out`
+void CollectLocChars(const std::wstring& dir, std::set<uint32_t>& out, int depth = 0, const wchar_t* prefix = nullptr) {  // prefix: only files that start with it
+    if (depth > 4) return;
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW((dir + L"\\*").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        const std::wstring name = fd.cFileName;
+        if (name == L"." || name == L"..") continue;
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            CollectLocChars(dir + L"\\" + name, out, depth + 1, prefix);
+        } else if (name.size() > 4 && _wcsicmp(name.c_str() + name.size() - 4, L".yml") == 0 && (!prefix || _wcsnicmp(name.c_str(), prefix, wcslen(prefix)) == 0)) {
+            const std::string text = ReadWholeFile(dir + L"\\" + name);
+            AddUtf8Chars(text.data(), text.size(), out);
+        }
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+}
+
+// The keys of the game's resources: the top-level names of common/strategic_resources/*.txt, in the base game and in every DLC folder
+std::set<std::string> GameResourceKeys(const std::wstring& game) {
+    std::set<std::string> keys;
+    std::vector<std::wstring> dirs = { game + L"common\\strategic_resources\\" };
+    WIN32_FIND_DATAW fd;
+    if (HANDLE h = FindFirstFileW((game + L"dlc\\*").c_str(), &fd); h != INVALID_HANDLE_VALUE) {
+        do {
+            if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && fd.cFileName[0] != L'.') dirs.push_back(game + L"dlc\\" + fd.cFileName + L"\\common\\strategic_resources\\");
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+    }
+    for (const std::wstring& d : dirs) {
+        HANDLE h = FindFirstFileW((d + L"*.txt").c_str(), &fd);
+        if (h == INVALID_HANDLE_VALUE) continue;
+        do {
+            const std::vector<Tok> toks = LexScript(ReadWholeFile(d + fd.cFileName));
+            SNode root;
+            size_t p = 0;
+            if (!ParseScriptBlock(toks, p, root, 0)) continue;
+            for (const SNode& k : root.kids)
+                if (k.block && !k.key.empty() && k.key[0] != '@') keys.insert(k.key);
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+    }
+    return keys;
+}
+
+// The language the player chose: `language="l_simp_chinese"` in the game's settings.txt, as the name of the folder under localisation\ ("simp_chinese")
+std::wstring PlayerLanguageDir() {
+    const std::string text = ReadWholeFile(StellarisDocs() + L"settings.txt");
+    const size_t at = text.find("language=\"l_");
+    if (at == std::string::npos) return {};
+    const size_t from = at + 12, to = text.find('"', from);
+    return to == std::string::npos ? std::wstring() : Utf8ToWide(text.substr(from, to - from));
+}
+
+// Characters of the values of the lines `<key>: "..."` and `concept_<key>: "..."` for the given keys, in every .yml under `dir`. A resource's name is defined
+// under its own key in some file of the game's localisation (sr_zro: "..." is in main_2_l_*.yml), and as a concept in another.
+void CollectKeyedLocChars(const std::wstring& dir, const std::set<std::string>& keys, std::set<uint32_t>& out) {
+    WIN32_FIND_DATAW fd;
+    HANDLE h = FindFirstFileW((dir + L"\\*.yml").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE) return;
+    do {
+        const std::string text = ReadWholeFile(dir + L"\\" + fd.cFileName);
+        for (size_t line = 0; line < text.size();) {
+            size_t end = text.find('\n', line);
+            if (end == std::string::npos) end = text.size();
+            size_t k = line;
+            while (k < end && (text[k] == ' ' || text[k] == '\t')) ++k;
+            const size_t colon = text.find(':', k);
+            if (colon != std::string::npos && colon < end) {
+                std::string key = text.substr(k, colon - k);
+                if (key.compare(0, 8, "concept_") == 0) key.erase(0, 8);
+                if (keys.count(key)) AddUtf8Chars(text.data() + colon, end - colon, out);
+            }
+            line = end + 1;
+        }
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+}
+
 void ScanMods() {
     RetirePanels(true);  // a rescan replaces what the last one registered
     int files = 0, panels = 0;
@@ -155,6 +252,10 @@ void ScanMods() {
                 Log("mod %s: %s: no stl_gui_version = 1, file ignored", mod.c_str(), fname.c_str());
                 continue;
             }
+            std::vector<std::string> requires_all;
+            if (const SNode* rq = ChildOf(root, "stl_gui_requires"))
+                for (const SNode& r : rq->kids)
+                    if (!r.block && !r.value.empty()) requires_all.push_back(r.value);
             for (const SNode& k : root.kids) {
                 if (k.key != "panel" || !k.block) continue;
                 auto d = std::make_shared<DeclPanel>();
@@ -166,6 +267,7 @@ void ScanMods() {
                     d->w = (float)atof(sz->kids[0].value.c_str());
                     d->h = (float)atof(sz->kids[1].value.c_str());
                 }
+                d->requires_ = requires_all;
                 if (d->id.empty()) {
                     Log("mod %s: %s: a panel without id, ignored", mod.c_str(), fname.c_str());
                     continue;
@@ -184,6 +286,28 @@ void ScanMods() {
                 opts.title_is_loc = true;
                 opts.w = d->w;
                 opts.h = d->h;
+                // kind = window (default) | hud, anchor, offset = { x y }, hotkey, open = yes | no
+                const std::string kind = ValOf(k, "kind", "window");
+                if (kind == "hud") opts.hud = true;
+                else if (kind != "window") Log("mod %s: %s: panel %s: unknown kind '%s', shown as a window", mod.c_str(), fname.c_str(), d->id.c_str(), kind.c_str());
+                if (opts.hud) {
+                    opts.movable = ValOf(k, "movable", "no") == "yes";
+                    const std::string an = ValOf(k, "anchor", "center");
+                    opts.anchor = ParseAnchor(an);
+                    if (opts.anchor < 0) {
+                        Log("mod %s: %s: panel %s: unknown anchor '%s', centred", mod.c_str(), fname.c_str(), d->id.c_str(), an.c_str());
+                        opts.anchor = ANCHOR_CENTER;
+                    }
+                    if (const SNode* off = ChildOf(k, "offset"); off && off->kids.size() >= 2) {
+                        opts.ox = (float)atof(off->kids[0].value.c_str());
+                        opts.oy = (float)atof(off->kids[1].value.c_str());
+                    }
+                }
+                if (const std::string hk = ValOf(k, "hotkey"); !hk.empty()) {
+                    opts.hotkey = ParseHotkey(hk);
+                    if (!opts.hotkey) Log("mod %s: %s: panel %s: '%s' is not a hot key (like ctrl+shift+g, f9)", mod.c_str(), fname.c_str(), d->id.c_str(), hk.c_str());
+                }
+                opts.open = ValOf(k, "open", "yes") != "no";
                 if (RegisterPanelInternal(desc, opts)) ++panels;
             }
         } while (FindNextFileW(h, &fd));
@@ -211,6 +335,10 @@ const EffCache& EffState(const std::string& key) {  // the engine's verdict on a
     return e;
 }
 
+const StlGuiCallbackCtx* g_ctx = nullptr;     // the callback context of the declared panel being drawn
+const DeclPanel* g_cur_panel = nullptr;
+int g_elem_depth = 0;                         // nesting of containers (an element drawing blocks that hold elements ...)
+
 void DrawDeclNode(const SNode& n, int depth);
 void DrawDeclBlock(const SNode& block, bool row, int depth) {
     bool first = true;
@@ -231,6 +359,24 @@ double StatValue(const std::string& stat, bool* known) {
     *known = false;
     return 0;
 }
+// an entry that is not one of the host's: an element a plugin registered, or a note that there is none
+void DrawUnknown(const SNode& n) {
+    if (n.key.empty()) return;
+    const ElementResult r = g_ctx ? DrawElement(n.key, (const StlGuiNode*)&n, g_ctx) : ElementResult::NotRegistered;
+    if (r == ElementResult::Drawn) return;
+    if (r == ElementResult::NotRegistered && !n.block) return;  // a plain `key = value` that nobody claims: a parameter of the entry around it
+    std::string need = "not installed";
+    if (g_cur_panel && !g_cur_panel->requires_.empty()) {
+        need = "needs ";
+        for (size_t i = 0; i < g_cur_panel->requires_.size(); ++i) need += (i ? ", " : "") + g_cur_panel->requires_[i];
+    }
+    ImGui::TextDisabled("[%s: %s]", n.key.c_str(), r == ElementResult::Disabled ? "disabled" : need.c_str());
+    static std::unordered_set<std::string> said;
+    if (said.insert((g_cur_panel ? g_cur_panel->mod + ":" + g_cur_panel->id : std::string()) + "/" + n.key).second)
+        Log("panel %s: element '%s' is %s", g_cur_panel ? (g_cur_panel->mod + ":" + g_cur_panel->id).c_str() : "?", n.key.c_str(),
+            r == ElementResult::Disabled ? "disabled (it faulted three times)" : ("not registered (" + need + ")").c_str());
+}
+
 void DrawDeclNode(const SNode& n, int depth) {
     if (depth > 10) return;
     if (n.key == "row" && n.block) {
@@ -286,20 +432,131 @@ void DrawDeclNode(const SNode& n, int depth) {
         if (!e.valid) ImGui::EndDisabled();
         if (!e.valid && !e.reason.empty() && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", e.reason.c_str());
         if (clicked && e.valid) g_pending.push_back({ Pending::Button, 0, effect });
+    } else {
+        DrawUnknown(n);
     }
 }
-void DrawDeclPanel(const StlGuiCallbackCtx*, void* user) {
+// ---- the accessors a registered element reads its declaration with (StlGuiNodeApi)
+const SNode& NodeOf(const StlGuiNode* n) {
+    static const SNode empty;
+    return n ? *(const SNode*)n : empty;
+}
+const char* NodeKey(const StlGuiNode* n) { return NodeOf(n).key.c_str(); }
+int NodeIsBlock(const StlGuiNode* n) { return NodeOf(n).block ? 1 : 0; }
+const char* NodeSelfValue(const StlGuiNode* n) { return NodeOf(n).value.c_str(); }
+const char* NodeValue(const StlGuiNode* n, const char* key, const char* def) {
+    const SNode* c = key ? ChildOf(NodeOf(n), key) : nullptr;
+    return c && !c->block ? c->value.c_str() : def;
+}
+double NodeNumber(const StlGuiNode* n, const char* key, double def) {
+    const char* v = NodeValue(n, key, nullptr);
+    return v ? atof(v) : def;
+}
+const StlGuiNode* NodeChild(const StlGuiNode* n, const char* key) { return key ? (const StlGuiNode*)ChildOf(NodeOf(n), key) : nullptr; }
+uint32_t NodeChildCount(const StlGuiNode* n) { return (uint32_t)NodeOf(n).kids.size(); }
+const StlGuiNode* NodeChildAt(const StlGuiNode* n, uint32_t i) {
+    const SNode& b = NodeOf(n);
+    return i < b.kids.size() ? (const StlGuiNode*)&b.kids[i] : nullptr;
+}
+const char* NodeText(const StlGuiNode* n, const char* key, const char* def) {
+    static std::string ring[16];  // a text stays valid for the next 15 calls
+    static unsigned slot = 0;
+    const char* v = NodeValue(n, key, nullptr);
+    if (!v) return def;
+    std::string& out = ring[slot++ & 15];
+    out = LocScoped(v);
+    return out.c_str();
+}
+void NodeDrawBlock(const StlGuiNode* b) {
+    if (!b || g_elem_depth > 12) return;
+    ++g_elem_depth;
+    DrawDeclBlock(NodeOf(b), false, 0);
+    --g_elem_depth;
+}
+void NodeDrawRow(const StlGuiNode* b) {
+    if (!b || g_elem_depth > 12) return;
+    ++g_elem_depth;
+    DrawDeclBlock(NodeOf(b), true, 0);
+    --g_elem_depth;
+}
+void NodeDrawNode(const StlGuiNode* n) {
+    if (!n || g_elem_depth > 12) return;
+    ++g_elem_depth;
+    DrawDeclNode(NodeOf(n), 0);
+    --g_elem_depth;
+}
+const StlGuiNodeApi g_node_api = { sizeof(StlGuiNodeApi), 0, NodeKey, NodeIsBlock, NodeSelfValue, NodeValue, NodeNumber, NodeChild, NodeChildCount,
+                                   NodeChildAt, NodeText, NodeDrawBlock, NodeDrawRow, NodeDrawNode };
+
+void DrawDeclPanel(const StlGuiCallbackCtx* ctx, void* user) {
     const DeclPanel* d = (const DeclPanel*)user;
     if (!g_snap.in_game) {
         ImGui::TextDisabled("not in a game");
         return;
     }
+    g_ctx = ctx;
+    g_cur_panel = d;
+    g_elem_depth = 0;
     DrawDeclBlock(d->content, false, 0);
+    g_ctx = nullptr;
+    g_cur_panel = nullptr;
 }
 
 bool g_rescan = false;
 
 }  // namespace
+
+std::string ModGlyphText() {
+    std::set<uint32_t> cps;
+    int mods = 0;
+    for (const auto& [mod, dir] : EnabledMods()) {
+        if (GetFileAttributesW((dir + L"\\interface\\stl_gui").c_str()) == INVALID_FILE_ATTRIBUTES) continue;  // only mods that declare panels
+        ++mods;
+        CollectLocChars(dir + L"\\localisation", cps);
+    }
+    // the names the game itself gives things a component shows (a resource's name is in concepts_l_<language>.yml of the game's own localisation)
+    wchar_t exe[MAX_PATH * 2] = {};
+    GetModuleFileNameW(nullptr, exe, (DWORD)std::size(exe));
+    std::wstring game = exe;
+    game.resize(game.find_last_of(L"\\/") + 1);
+    WIN32_FIND_DATAW fd;
+    if (HANDLE h = FindFirstFileW((game + L"localisation\\*").c_str(), &fd); h != INVALID_HANDLE_VALUE) {
+        do {
+            const std::wstring lang = fd.cFileName;
+            if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) && lang != L"." && lang != L"..") CollectLocChars(game + L"localisation\\" + lang, cps, 0, L"concepts");
+        } while (FindNextFileW(h, &fd));
+        FindClose(h);
+    }
+    // ... and the resources' own names (not only concepts: the name of Zro is `sr_zro` in main_2_l_simp_chinese.yml), in the language the player plays in
+    size_t named = 0;
+    if (const std::wstring lang = PlayerLanguageDir(); !lang.empty()) {
+        const size_t before = cps.size();
+        CollectKeyedLocChars(game + L"localisation\\" + lang, GameResourceKeys(game), cps);
+        named = cps.size() - before;
+    }
+    std::string out;
+    for (uint32_t cp : cps) {  // back to UTF-8 (BMP only)
+        if (cp < 0x800) {
+            out += (char)(0xC0 | (cp >> 6));
+            out += (char)(0x80 | (cp & 0x3F));
+        } else {
+            out += (char)(0xE0 | (cp >> 12));
+            out += (char)(0x80 | ((cp >> 6) & 0x3F));
+            out += (char)(0x80 | (cp & 0x3F));
+        }
+    }
+    Log("glyphs: %zu characters from the localisation of %d mod(s) that declare panels, the game's concept names and its resource names (%zu of them only from resources)", cps.size(), mods, named);
+    return out;
+}
+
+const StlGuiNodeApi* DeclNodeApi() { return &g_node_api; }
+
+bool IsBuiltinElement(const std::string& name) {
+    static const char* const kNames[] = { "text", "separator", "spacer", "date", "value", "gauge", "stat", "badge", "button", "row" };
+    for (const char* n : kNames)
+        if (name == n) return true;
+    return false;
+}
 
 void RequestRescan() { g_rescan = true; }
 

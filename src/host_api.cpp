@@ -15,6 +15,12 @@ struct HostPanel {
     bool decl = false;  // declared by a mod (not registered by a plugin)
     bool title_is_loc = false;
     float w = 360, h = 280;
+    bool hud = false;       // an undecorated window anchored to a screen edge
+    bool movable = false;
+    int anchor = 0;
+    float ox = 0, oy = 0;
+    uint32_t hotkey = 0;    // HK_* | vk << 8
+    bool hk_down = false;
     volatile bool dead = false;
     int faults = 0;
     uint64_t calls = 0;
@@ -22,6 +28,19 @@ struct HostPanel {
 SRWLOCK g_panel_lock = SRWLOCK_INIT;
 std::vector<std::shared_ptr<HostPanel>> g_panels;
 int g_next_panel = 1;
+
+struct HostElement {
+    int handle = 0;
+    std::string name, provider;
+    StlGuiElementFn draw = nullptr;
+    void* user = nullptr;
+    volatile bool dead = false;
+    int faults = 0, repair_logs = 0;
+    uint64_t calls = 0;
+};
+SRWLOCK g_el_lock = SRWLOCK_INIT;
+std::vector<std::shared_ptr<HostElement>> g_elements;
+int g_next_element = 1;
 
 int RegisterCommon(const StlGuiPanelDesc& d, const PanelOptions& o) {
     if (d.size < sizeof(StlGuiPanelDesc) || !d.draw || !d.id || !*d.id) return 0;
@@ -35,6 +54,13 @@ int RegisterCommon(const StlGuiPanelDesc& d, const PanelOptions& o) {
     p->title_is_loc = o.title_is_loc;
     p->w = o.w;
     p->h = o.h;
+    p->visible = o.open;
+    p->hud = o.hud;
+    p->movable = o.movable;
+    p->anchor = o.anchor;
+    p->ox = o.ox;
+    p->oy = o.oy;
+    p->hotkey = o.hotkey;
     AcquireSRWLockExclusive(&g_panel_lock);
     bool dup = false;
     for (const auto& q : g_panels)
@@ -78,6 +104,22 @@ int ApiGetSnapshot(StlGuiSnapshot* out) {
         o.net = r.net;
         o.max = r.max;
     }
+    for (uint32_t i = 0; i < t.resource_count; ++i) {
+        t.income[i] = g_snap.res[i].income;
+        t.expense[i] = g_snap.res[i].expense;
+    }
+    t.colonies = g_snap.colonies;
+    t.pops = g_snap.pops;
+    t.empire_size = g_snap.empire_size;
+    t.day_index = g_snap.day_index;
+    t.military_power = g_snap.mil;
+    t.tech_power = g_snap.tech;
+    t.economy_power = g_snap.eco;
+    t.colonies_max = g_snap.col_max;
+    t.pops_max = g_snap.pop_max;
+    t.military_power_max = g_snap.mil_max;
+    t.tech_power_max = g_snap.tech_max;
+    t.economy_power_max = g_snap.eco_max;
     const uint32_t n = std::min<uint32_t>(out->size, sizeof(t));
     const uint32_t want = out->size;
     memcpy(out, &t, n);
@@ -110,6 +152,90 @@ int ApiLocalize(const char* key, char* out, uint32_t cap) {
     memcpy(out, s.data(), n);
     out[n] = 0;
     return (int)n;
+}
+
+int ApiGetHistory(const char* series, float* out, uint32_t cap) { return HistorySeries(series, out, cap); }
+
+void FillTheme(int i, StlGuiTheme* t) {  // t->size is set by the caller
+    const ThemeDef& d = kThemes[i];
+    t->index = (uint32_t)i;
+    t->theme_count = kThemeCount;
+    t->name = d.name;
+    t->accent = d.a;
+    t->accent2 = d.b;
+    t->text = IM_COL32(226, 233, 255, 255);
+    t->text_dim = IM_COL32(138, 150, 188, 255);
+    t->good = IM_COL32(90, 235, 150, 255);
+    t->bad = IM_COL32(255, 100, 110, 255);
+    t->warn = IM_COL32(255, 190, 80, 255);
+    t->panel = IM_COL32(11, 15, 32, 205);
+    t->border = IM_COL32(255, 255, 255, 24);
+}
+int ApiThemeInfo(int index, StlGuiTheme* out) {
+    if (!out || out->size < 16 || index < 0 || index >= kThemeCount) return 0;
+    StlGuiTheme t{};
+    t.size = sizeof(t);
+    FillTheme(index, &t);
+    const uint32_t want = out->size;
+    memcpy(out, &t, std::min<uint32_t>(want, sizeof(t)));
+    out->size = want;
+    return 1;
+}
+int ApiSetTheme(int index) {
+    if (index < 0 || index >= kThemeCount || index == g_theme) return 0;
+    g_theme = index;
+    return 1;
+}
+
+int ApiPanelVisibility(const char* id, int op) {
+    if (!id) return -1;
+    int result = -1;
+    AcquireSRWLockShared(&g_panel_lock);
+    for (const auto& p : g_panels) {
+        if (p->dead || p->id != id) continue;
+        if (op == 0) p->visible = false;
+        else if (op == 1) p->visible = true;
+        else if (op == 2) p->visible = !p->visible;
+        result = p->visible ? 1 : 0;
+        break;
+    }
+    ReleaseSRWLockShared(&g_panel_lock);
+    return result;
+}
+
+int ApiRegisterElement(const StlGuiElementDesc* d) {
+    if (!d || d->size < sizeof(StlGuiElementDesc) || !d->draw || !d->name || !*d->name) return 0;
+    const std::string name = d->name;
+    if (IsBuiltinElement(name)) {
+        Log("element %s: rejected, it is one of the host's own elements", name.c_str());
+        return 0;
+    }
+    auto e = std::make_shared<HostElement>();
+    e->name = name;
+    e->provider = d->provider ? d->provider : "";
+    e->draw = d->draw;
+    e->user = d->user;
+    AcquireSRWLockExclusive(&g_el_lock);
+    bool dup = false;
+    for (const auto& q : g_elements)
+        if (!q->dead && q->name == name) dup = true;
+    if (!dup) {
+        e->handle = g_next_element++;
+        g_elements.push_back(e);
+    }
+    ReleaseSRWLockExclusive(&g_el_lock);
+    Log("element %s: %s (provider %s, handle %d, code %p)", name.c_str(), dup ? "rejected, name already registered" : "registered", e->provider.c_str(), e->handle,
+        (void*)d->draw);
+    return dup ? 0 : e->handle;
+}
+void ApiUnregisterElement(int handle) {
+    AcquireSRWLockExclusive(&g_el_lock);
+    for (auto& q : g_elements)
+        if (q->handle == handle && !q->dead) {
+            q->dead = true;
+            Log("element %s: unregistered", q->name.c_str());
+        }
+    ReleaseSRWLockExclusive(&g_el_lock);
 }
 
 // the C drawing wrappers (a plugin without any ImGui of its own draws through these)
@@ -150,7 +276,8 @@ void UiText2(float x, float y, uint32_t c, const char* s) { ImGui::GetWindowDraw
 const StlGuiUi g_ui = { sizeof(StlGuiUi), 0,  UiText,   UiTextColored, UiButton,  UiCheckbox, UiSlider, UiSameLine, UiSeparator,
                         UiProgress,       UiTooltip, UiCursor, UiAvail, UiDummy,  UiLine,     UiRect,   UiCircle,   UiText2 };
 const StlGuiApi g_api = { sizeof(StlGuiApi), STL_GUI_API_VERSION, sdk::kExeTimestamp, 0, ApiRegisterPanel, ApiUnregisterPanel, ApiGetSnapshot,
-                          ApiEffectState,    ApiPostEffect,       ApiSetSpeed,        ApiSetPaused, ApiLog, ApiLocalize };
+                          ApiEffectState,    ApiPostEffect,       ApiSetSpeed,        ApiSetPaused, ApiLog, ApiLocalize,
+                          ApiGetHistory,     ApiRegisterElement,  ApiUnregisterElement, ApiPanelVisibility, ApiThemeInfo, ApiSetTheme };
 
 // A callback that raises an exception must not take the game down, and one that leaves ImGui's stacks unbalanced (a Begin without End, a
 // pushed colour never popped) must not break the frame of everybody after it: the stacks are put back to where they were.
@@ -190,6 +317,18 @@ bool CodeIsMapped(const void* p) {
 }
 
 
+// where a HUD window goes: the point of the screen it is anchored to, and which point of the window sits there; offsets are the distance inward
+void AnchorPoint(int anchor, ImVec2 disp, float ox, float oy, ImVec2* pos, ImVec2* pivot) {
+    const bool left = anchor == ANCHOR_TOP_LEFT || anchor == ANCHOR_LEFT_CENTER || anchor == ANCHOR_BOTTOM_LEFT;
+    const bool right = anchor == ANCHOR_TOP_RIGHT || anchor == ANCHOR_RIGHT_CENTER || anchor == ANCHOR_BOTTOM_RIGHT;
+    const bool top = anchor == ANCHOR_TOP_LEFT || anchor == ANCHOR_TOP_CENTER || anchor == ANCHOR_TOP_RIGHT;
+    const bool bottom = anchor == ANCHOR_BOTTOM_LEFT || anchor == ANCHOR_BOTTOM_CENTER || anchor == ANCHOR_BOTTOM_RIGHT;
+    pivot->x = left ? 0.f : right ? 1.f : 0.5f;
+    pivot->y = top ? 0.f : bottom ? 1.f : 0.5f;
+    pos->x = left ? ox : right ? disp.x - ox : disp.x * 0.5f + ox;
+    pos->y = top ? oy : bottom ? disp.y - oy : disp.y * 0.5f + oy;
+}
+
 void DispatchImpl() {
     std::vector<std::shared_ptr<HostPanel>> list;
     AcquireSRWLockShared(&g_panel_lock);
@@ -216,6 +355,17 @@ void DispatchImpl() {
     cb.font_body = F(g_font_body);
     cb.font_bold = F(g_font_bold);
     cb.font_numbers = F(g_font_num_s);
+    cb.ui_scale = g_S;
+    cb.fit = g_fit;
+    cb.delta_time = g_DT;
+    cb.time = (float)g_T;
+    cb.font_title = F(g_font_title);
+    cb.font_numbers_large = F(g_font_num);
+    StlGuiTheme theme{};
+    theme.size = sizeof(theme);
+    FillTheme(g_theme, &theme);
+    cb.theme = &theme;
+    cb.node = DeclNodeApi();
 
     for (const auto& p : list) {
         if (!CodeIsMapped((const void*)p->draw)) {
@@ -224,16 +374,33 @@ void DispatchImpl() {
             continue;
         }
         if (!p->visible) continue;
-        const StackMark mark = MarkStacks();
         const bool window = (p->flags & STL_PANEL_WINDOW) != 0;
+        const bool hud = window && p->hud;
+        if (hud) {  // no padding and no border: the components of a HUD place everything themselves (pushed before the mark: they are ours to pop)
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+            ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.f);
+        }
+        const StackMark mark = MarkStacks();
         bool shown = true;
         if (window) {
             // a declared panel's title is a loc key; the id after ### keeps the window's identity when the language changes
             const std::string name = p->title_is_loc ? LocKey(p->title) + "###" + p->id : p->title;
             const float w = p->w, h = p->h;
-            ImGui::SetNextWindowSize(ImVec2(w * g_S, h * g_S), ImGuiCond_FirstUseEver);
-            ImGui::SetNextWindowPos(ImVec2((30.f + 400.f * (float)((p->handle - 1) % 3)) * g_S, (120.f + 40.f * (float)((p->handle - 1) / 3)) * g_S), ImGuiCond_FirstUseEver);
-            shown = ImGui::Begin(name.c_str(), &p->visible, ImGuiWindowFlags_NoSavedSettings);
+            if (hud) {
+                ImVec2 pos, pivot;
+                AnchorPoint(p->anchor, ImGui::GetIO().DisplaySize, p->ox * g_S, p->oy * g_S, &pos, &pivot);
+                const ImVec2 disp = ImGui::GetIO().DisplaySize;
+                ImGui::SetNextWindowPos(pos, p->movable ? ImGuiCond_FirstUseEver : ImGuiCond_Always, pivot);
+                ImGui::SetNextWindowSize(ImVec2(std::min(w * g_S, disp.x - 30.f), std::min(h * g_S, disp.y - 30.f)), ImGuiCond_Always);  // never bigger than the screen
+                shown = ImGui::Begin(name.c_str(), nullptr,
+                                     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | (p->movable ? 0 : ImGuiWindowFlags_NoMove) |
+                                         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoCollapse |
+                                         ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoNav);
+            } else {
+                ImGui::SetNextWindowSize(ImVec2(w * g_S, h * g_S), ImGuiCond_FirstUseEver);
+                ImGui::SetNextWindowPos(ImVec2((30.f + 400.f * (float)((p->handle - 1) % 3)) * g_S, (120.f + 40.f * (float)((p->handle - 1) / 3)) * g_S), ImGuiCond_FirstUseEver);
+                shown = ImGui::Begin(name.c_str(), &p->visible, ImGuiWindowFlags_NoSavedSettings);
+            }
             if (shown) ImGui::SetWindowFontScale(g_fit);
         }
         bool ok = true;
@@ -242,6 +409,7 @@ void DispatchImpl() {
         ++p->calls;
         const int repaired = RestoreStacks(mark, window ? 1 : 0);
         if (window) ImGui::End();
+        if (hud) ImGui::PopStyleVar(2);
         if (!ok) {
             ++p->faults;
             Log("panel %s: exception 0x%08lX in its draw callback (fault %d of 3), ImGui stacks restored (%d entries)", p->id.c_str(), code, p->faults, repaired);
@@ -257,7 +425,116 @@ void DispatchImpl() {
 
 LONG64 g_dispatch_qpc = 0, g_dispatch_frames = 0;
 
+bool CallElement(StlGuiElementFn fn, const StlGuiCallbackCtx* ctx, const StlGuiNode* node, void* user, DWORD* code) {
+    __try {
+        fn(ctx, node, user);
+        return true;
+    } __except (*code = GetExceptionCode(), EXCEPTION_EXECUTE_HANDLER) {
+        return false;
+    }
+}
+
 }  // namespace
+
+ElementResult DrawElement(const std::string& name, const StlGuiNode* node, const StlGuiCallbackCtx* ctx) {
+    std::shared_ptr<HostElement> el;
+    bool dead_match = false;
+    AcquireSRWLockShared(&g_el_lock);
+    for (const auto& e : g_elements) {
+        if (e->name != name) continue;
+        if (!e->dead) {
+            el = e;
+            break;
+        }
+        dead_match = true;
+    }
+    ReleaseSRWLockShared(&g_el_lock);
+    if (!el) return dead_match ? ElementResult::Disabled : ElementResult::NotRegistered;
+    if (!CodeIsMapped((const void*)el->draw)) {
+        el->dead = true;
+        Log("element %s: its code is no longer mapped (plugin unloaded without unregistering), dropped", name.c_str());
+        return ElementResult::Disabled;
+    }
+    const StackMark mark = MarkStacks();
+    DWORD code = 0;
+    const bool ok = CallElement(el->draw, ctx, node, el->user, &code);
+    ++el->calls;
+    const int repaired = RestoreStacks(mark, 0);
+    if (!ok) {
+        ++el->faults;
+        Log("element %s: exception 0x%08lX in its draw callback (fault %d of 3), ImGui stacks restored (%d entries)", name.c_str(), code, el->faults, repaired);
+        if (el->faults >= 3) {
+            el->dead = true;
+            Log("element %s: disabled after 3 faults", name.c_str());
+        }
+    } else if (repaired && el->repair_logs++ < 3) {
+        Log("element %s: left %d ImGui stack entries open, restored", name.c_str(), repaired);
+    }
+    return ElementResult::Drawn;
+}
+
+std::string ElementProvider(const std::string& name) {
+    std::string out;
+    AcquireSRWLockShared(&g_el_lock);
+    for (const auto& e : g_elements)
+        if (e->name == name && !e->dead) out = e->provider;
+    ReleaseSRWLockShared(&g_el_lock);
+    return out;
+}
+
+// "ctrl+shift+g", "f9", "alt+1": modifiers | virtual key << 8; 0 when it is not a hot key
+uint32_t ParseHotkey(const std::string& text) {
+    uint32_t mods = 0, vk = 0;
+    std::string tok;
+    for (size_t i = 0; i <= text.size(); ++i) {
+        if (i < text.size() && text[i] != '+') {
+            tok += (char)tolower((unsigned char)text[i]);
+            continue;
+        }
+        if (tok == "ctrl" || tok == "control") mods |= HK_CTRL;
+        else if (tok == "shift") mods |= HK_SHIFT;
+        else if (tok == "alt") mods |= HK_ALT;
+        else if (tok.size() == 1 && ((tok[0] >= 'a' && tok[0] <= 'z') || (tok[0] >= '0' && tok[0] <= '9'))) vk = (uint32_t)toupper((unsigned char)tok[0]);
+        else if (tok.size() >= 2 && tok[0] == 'f' && atoi(tok.c_str() + 1) >= 1 && atoi(tok.c_str() + 1) <= 12) vk = (uint32_t)(VK_F1 + atoi(tok.c_str() + 1) - 1);
+        else if (tok == "space") vk = VK_SPACE;
+        else if (tok == "tab") vk = VK_TAB;
+        else if (tok == "enter") vk = VK_RETURN;
+        else if (tok == "escape" || tok == "esc") vk = VK_ESCAPE;
+        else if (!tok.empty()) return 0;
+        tok.clear();
+    }
+    return vk ? (mods | (vk << 8)) : 0;
+}
+
+int ParseAnchor(const std::string& text) {
+    std::string t;
+    for (char c : text) t += (c == '-' || c == ' ') ? '_' : (char)tolower((unsigned char)c);
+    static const std::pair<const char*, int> names[] = {
+        { "top_left", ANCHOR_TOP_LEFT },       { "top_center", ANCHOR_TOP_CENTER },       { "top_right", ANCHOR_TOP_RIGHT },
+        { "left_center", ANCHOR_LEFT_CENTER }, { "center", ANCHOR_CENTER },               { "right_center", ANCHOR_RIGHT_CENTER },
+        { "bottom_left", ANCHOR_BOTTOM_LEFT }, { "bottom_center", ANCHOR_BOTTOM_CENTER }, { "bottom_right", ANCHOR_BOTTOM_RIGHT },
+    };
+    for (const auto& n : names)
+        if (t == n.first) return n.second;
+    return -1;
+}
+
+void PollPanelHotkeys() {
+    DWORD pid = 0;
+    GetWindowThreadProcessId(GetForegroundWindow(), &pid);
+    const bool ours = pid == GetCurrentProcessId();  // only while the game window is the foreground window
+    auto down = [](int vk) { return (GetAsyncKeyState(vk) & 0x8000) != 0; };
+    AcquireSRWLockShared(&g_panel_lock);
+    for (auto& p : g_panels) {
+        if (p->dead || !p->hotkey) continue;
+        const uint32_t mods = p->hotkey & 0xFF;
+        const int vk = (int)(p->hotkey >> 8);
+        const bool now = ours && down(vk) && (!(mods & HK_CTRL) || down(VK_CONTROL)) && (!(mods & HK_SHIFT) || down(VK_SHIFT)) && (!(mods & HK_ALT) || down(VK_MENU));
+        if (now && !p->hk_down) p->visible = !p->visible;
+        p->hk_down = now;
+    }
+    ReleaseSRWLockShared(&g_panel_lock);
+}
 
 int RegisterPanelInternal(const StlGuiPanelDesc& d, const PanelOptions& o) { return RegisterCommon(d, o); }
 
@@ -293,6 +570,13 @@ void PanelCommand(const char* id, int visible) {
         else if (p->id == id) p->visible = visible != 0;
     }
     ReleaseSRWLockShared(&g_panel_lock);
+    if (!strcmp(id, "list")) {
+        AcquireSRWLockShared(&g_el_lock);
+        for (const auto& e : g_elements)
+            Log("element %d %s provider '%s' dead %d calls %llu faults %d", e->handle, e->name.c_str(), e->provider.c_str(), (int)e->dead,
+                (unsigned long long)e->calls, e->faults);
+        ReleaseSRWLockShared(&g_el_lock);
+    }
 }
 
 const StlGuiApi* HostApi() { return &g_api; }

@@ -90,10 +90,8 @@ Config g_cfg;
 void LoadConfig() {
     const std::wstring ini = PluginDir() + L"config\\stellaris_guiexpand.ini";
     auto flag = [&](const wchar_t* key, bool def) { return GetPrivateProfileIntW(L"guiexpand", key, def ? 1 : 0, ini.c_str()) != 0; };
-    g_cfg.deck = flag(L"deck", true);
-    g_cfg.deck_open = flag(L"deck_open", false);
-    g_cfg.stars = flag(L"stars", true);
-    g_cfg.theme = std::clamp((int)GetPrivateProfileIntW(L"guiexpand", L"theme", 0, ini.c_str()), 0, 3);
+    g_cfg.theme = std::clamp((int)GetPrivateProfileIntW(L"guiexpand", L"theme", 0, ini.c_str()), 0, kThemeCount - 1);
+    g_theme = g_cfg.theme;
     g_cfg.dev_commands = flag(L"dev_commands", false);
     g_cfg.dev_unload = flag(L"dev_unload", false);
     wchar_t dirs[2048] = {};
@@ -395,6 +393,53 @@ const Hist* HistOf(const std::string& key) {
     return nullptr;
 }
 
+// ------------------------------------------------------------------------------------------------------------------------- theme, series
+const ThemeDef kThemes[kThemeCount] = {
+    { IM_COL32(0, 229, 200, 255), IM_COL32(150, 100, 255, 255), "极光  AURORA" },
+    { IM_COL32(255, 184, 64, 255), IM_COL32(255, 90, 160, 255), "余烬  EMBER" },
+    { IM_COL32(90, 235, 150, 255), IM_COL32(60, 170, 255, 255), "翡翠  VERDANT" },
+    { IM_COL32(255, 100, 110, 255), IM_COL32(255, 214, 90, 255), "赤焰  CRIMSON" },
+};
+int g_theme = 0;
+
+std::deque<float> g_frame_ms, g_tick_rate;
+static void PushSample(std::deque<float>& d, float v, size_t cap) {
+    d.push_back(v);
+    while (d.size() > cap) d.pop_front();
+}
+void FrameStats(float frame_ms, LONG64 ticks) {
+    PushSample(g_frame_ms, frame_ms, 120);
+    static LONG64 last_ticks = 0;
+    static double last_t = 0;
+    if (g_T - last_t >= 0.5) {
+        PushSample(g_tick_rate, (float)((ticks - last_ticks) / (g_T - last_t)), 120);
+        last_ticks = ticks;
+        last_t = g_T;
+    }
+}
+
+int HistorySeries(const char* series, float* out, uint32_t cap) {
+    if (!series || !out || !cap) return 0;
+    std::string s = series;
+    const std::deque<float>* d = nullptr;
+    if (s == "@frame_ms") {
+        d = &g_frame_ms;
+    } else if (s == "@tick_rate") {
+        d = &g_tick_rate;
+    } else {
+        bool net = false;
+        if (s.size() > 4 && s.compare(s.size() - 4, 4, ".net") == 0) {
+            net = true;
+            s.resize(s.size() - 4);
+        }
+        if (const Hist* h = HistOf(s)) d = net ? &h->net : &h->stock;
+    }
+    if (!d) return 0;
+    const size_t n = std::min<size_t>(d->size(), cap);
+    for (size_t i = 0; i < n; ++i) out[i] = (*d)[d->size() - n + i];
+    return (int)n;
+}
+
 // ------------------------------------------------------------------------------------ script channel (CExecuteButtonEffectCommand)
 void* FindButtonEffect(const char* key) {
     static std::unordered_map<std::string, std::pair<uintptr_t, void*>> cache;  // key -> {db, entry}
@@ -556,7 +601,6 @@ bool RunButtonEffect(const char* key, bool post, bool* valid, std::string* reaso
     return true;
 }
 
-std::deque<ScriptLogEntry> g_script_log;
 std::vector<Pending> g_pending;
 
 // ----------------------------------------------------------------------------------------------------------------- runtime state
@@ -592,39 +636,16 @@ void RunPending() {
             Log("pause -> %d", p.ival);
             break;
         case Pending::Button: {
-            ScriptLogEntry e;
-            e.key = p.key;
-            e.title = p.key;
-            e.time = g_T;
-            e.tick_posted = g_ticks;
-            e.serial_posted = g_snap_serial;
-            g_force_snapshot_frame = g_frames_total + 8;
-            if (const ResInfo* en = FindRes("energy")) {
-                e.energy_before = en->stock;
-                e.energy_known = true;
-            }
+            g_force_snapshot_frame = g_frames_total + 8;  // look again soon: the command changes the state
             bool valid = false;
             std::string why;
-            bool ok = RunButtonEffect(p.key.c_str(), true, &valid, &why);
-            e.ok = ok;
-            e.result = why;
-            e.done = !ok;  // a posted command is finished once a tick has run
+            const bool ok = RunButtonEffect(p.key.c_str(), true, &valid, &why);
             Log("button %s: posted=%d valid=%d '%s'", p.key.c_str(), (int)ok, (int)valid, why.c_str());
-            g_script_log.push_front(std::move(e));
-            while (g_script_log.size() > 12) g_script_log.pop_back();
             break;
         }
         }
     }
     g_pending.clear();
-}
-
-void CompleteScriptLog() {
-    for (auto& e : g_script_log)
-        if (e.ok && !e.done && g_snap.serial > e.serial_posted) {
-            e.done = true;
-            if (const ResInfo* en = FindRes("energy")) e.energy_after = en->stock;
-        }
 }
 
 }  // namespace guiexpand

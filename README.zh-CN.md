@@ -6,7 +6,7 @@
 
 - **插件开发者**用一个很小的 C 接口（`include/stellaris_guiexpand/stellaris_gui_api.h`）就能显示面板：C、带或不带自己 ImGui 的 C++、任何能调用 C 函数的语言都行。不用挂钩子，不读引擎内存，游戏更新后也不用重新编译；
 - **mod 作者**在自己 mod 的文本文件里（`interface/stl_gui/*.txt`，用游戏自己的脚本语法）描述一个面板，宿主负责画：带本地化，能显示 mod 脚本算出来的值（变量、`scripted_loc`、脚本值），按钮执行 mod 自己的 `button_effect`。不需要 DLL，不需要编程；
-- **玩家**在一个地方看到所有已装插件的面板，外加一个可选的参考皮肤：状态胶囊和 *Command Deck*。
+- **玩家**在一个地方看到所有已装插件的面板。组件库（例如 [stellaris-argon-ui](https://github.com/Yidhar/stellaris-argon-ui)）给 mod 提供更丰富的元素（卡片、环形仪表、图表、标签页、HUD 胶囊：*Command Deck* 就是用它搭的），宿主这边什么都不用改。
 
 它是 **Stellaris 启动器**的一个插件（插件规范 v2），不需要 mod，不改存档。
 
@@ -41,9 +41,7 @@
 2. 解压到 `Documents\Paradox Interactive\Stellaris\plugins\stellaris-guiexpand\`（zip 没有顶层文件夹：`stl-plugin.json` 直接在该文件夹里），或者解压到任意位置，用启动器安装：`stl plugin install <文件夹>`。
 3. 在播放集里启用（`stl plugin enable stellaris-guiexpand`，或启动器的插件页）。
 4. **用 Stellaris 启动器启动游戏**（`stl launch` 或它的“开始”按钮）。启动器等游戏窗口出现后加载插件。从 Steam 或 Paradox 启动器启动的游戏没有插件。
-5. 进入游戏后，屏幕底部有状态胶囊。点它的圆环或按 **Ctrl + Shift + G** 打开 Command Deck。
-
-其他插件和 mod 的面板显示在屏幕左侧的窗口里，可以用 ImGui 的常规操作拖动和关闭。
+5. 进入游戏后，其他插件和 mod 的面板显示在屏幕左侧的窗口里，可以用 ImGui 的常规操作拖动和关闭；mod 可以给自己的面板指定快捷键。
 
 ## 设置
 
@@ -51,10 +49,7 @@
 
 | 键 | 默认 | 含义 |
 |---|---|---|
-| `deck` | 1 | 参考皮肤（胶囊和 Command Deck）。`0` = 只做宿主：插件和 mod 的面板照常显示 |
-| `deck_open` | 0 | 启动时就打开 Deck 窗口 |
-| `theme` | 0 | 0 极光、1 余烬、2 翠绿、3 绯红 |
-| `stars` | 1 | Deck 背景里的星空 |
+| `theme` | 0 | 玩家一开始的配色主题：0 极光、1 余烬、2 翠绿、3 绯红。组件从宿主读取它；设置页可以在游戏中改 |
 | `extra_mod_dirs` | | 除当前播放集的 mod 外，额外扫描声明面板的文件夹（用 `;` 分隔）：开发 mod 时不用启用它 |
 | `dev_commands` | 0 | 开发用：宿主执行 `logs\stellaris_guiexpand.cmd` 里的行（`tools/live/guiexpand_test.py` 用） |
 | `dev_unload` | 0 | 开发用：通过事件卸载，试新版本不用重启游戏。正式发布的插件不能自己卸载 |
@@ -65,8 +60,8 @@
 
 ```
 include/stellaris_guiexpand/    公共接口：stellaris_gui_api.h（C）、stellaris_gui_client.h（找到宿主）、stellaris_gui_imgui.hpp（自带 ImGui 的绑定）
-examples/          cpp_imgui：自带 ImGui 的插件；c：纯 C 插件
-src/               宿主（core、host_api、decl_panels、deck、imgui_host、loc、dllmain）
+examples/          cpp_imgui：自带 ImGui 的插件；c：纯 C 插件；element：注册元素的插件
+src/               宿主（core、host_api、decl_panels、imgui_host、loc、dllmain）
 sdk/               stellaris_sdk.hpp：生成的子集（所写 exe 版本的 RVA 和偏移）
 plugin/            stl-plugin.json 和 defaults\stellaris_guiexpand.ini
 tools/             build.bat、check_plugin.py、extract_sdk.py、gen_ui_glyphs.py、live/guiexpand_test.py

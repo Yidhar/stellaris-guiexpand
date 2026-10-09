@@ -58,6 +58,8 @@ int handle = api->register_panel(&d); // > 0；id 已被占用或没有回调时
 
 回调收到一个 `StlGuiCallbackCtx`：API 版本、引擎的 ImGui 上下文和分配器对、引擎的 ImGui 版本、四个 ImGui 类型的 `sizeof`（下面的绑定要用）、一张 C 绘制函数表（`ctx->ui`）、宿主的函数表（`ctx->api`），以及三种字体（`font_body`、`font_bold`、`font_numbers`，类型是 `ImFont*`）。上下文指针**每次调用都会传**：引擎可能重启 ImGui，会换一个新的。
 
+首个版本之后追加的（请先检查 `ctx->size`）：`ui_scale`（宿主的布局缩放：你排版用的每个像素尺寸都要乘它）、`fit`、`delta_time`、`time`（做动画用）、另外两种字体（`font_title`、`font_numbers_large`）、`theme`（玩家当前的配色，见下）和 `node`（给元素用的访问函数，见下）。
+
 ## 三种画法
 
 | | A：自带 ImGui | B：C 函数表（`ctx->ui`） |
@@ -109,20 +111,63 @@ static void DrawStatus(const StlGuiCallbackCtx* ctx, void* user) {
 
 | 调用 | |
 |---|---|
-| `get_snapshot(&snap)` | 日期、速度、暂停、玩家国家的 id 和名字，以及最多 32 种资源（`key`、`stock`、每月 `net`、`max`，`< 0` 表示没有上限）。它在回合 tick 之间取得，所以回调读到的永远是一致的一份；`snap.tick` 每个 tick 都会变。游戏还没运行时返回 0 |
+| `get_snapshot(&snap)` | 日期、速度、暂停、玩家国家的 id 和名字，以及最多 32 种资源（`key`、`stock`、每月 `net`、`max`，`< 0` 表示没有上限）。追加的有：每种资源的 `income[]` 和 `expense[]`、殖民地、人口、帝国规模、三项力量（军事、科技、经济），以及银河系里每项最强的帝国。它在回合 tick 之间取得，所以回调读到的永远是一致的一份；`snap.tick` 每个 tick 都会变。游戏还没运行时返回 0 |
 | `effect_state(key, reason, cap)` | 某个 mod 的 `common/button_effects` 条目：`1` 现在可以执行，`0` 引擎拒绝（**引擎自己的原因文字**写进 `reason`），`-1` 未知。`potential` 和 `allow` 由引擎求值 |
 | `post_effect(key)` | 把这个 effect 排到下一个安全的时刻，经引擎自己的命令（`CExecuteButtonEffectCommand`），以玩家国家执行。排上队就返回 1。引擎会再检查一次。已在单人游戏中验证 |
 | `set_speed(n)` / `set_paused(b)` | 游戏自己的 setter，在 tick 之间生效 |
 | `log(plugin_id, line)` | 往 stellaris-guiexpand 的日志写一行，加上你的 id 作前缀 |
+| `get_history(series, out, cap)` | *（追加）* 最近若干游戏日的一个序列，用来画图：资源键（库存）、`"<资源>.net"`、`"@frame_ms"` 或 `"@tick_rate"`。返回样本数 |
+| `panel_visibility(panel_id, op)` | *（追加）* 按 id 显示（1）、隐藏（0）、切换（2）或查询（-1）任意面板（声明面板的 id 是 `<mod 名>:<id>`） |
+| `theme_info(i, &t)` / `set_theme(i)` | *（追加）* 玩家的主题列表和选择 |
 | `localize(key, out, cap)` | *（首个版本之后追加的：请先检查 `api->size >= offsetof(StlGuiApi, localize) + sizeof(void*)`）* 把游戏的一个本地化键（例如某个 mod 的）变成给玩家国家看的显示文字。文字里可以有 `[Root.my_variable]`、`[Root.GetName]` 或 `scripted_loc`，由引擎求值：这就是显示 mod 脚本算出来的东西的办法。每帧调用也很便宜（值在 tick 之间、游戏状态变化后刷新）。返回复制的字节数；含空格的文字原样返回 |
 
 一个 button effect 也可以当作**问题**：写一个 `effect = { }` 为空、在 `potential` / `allow` 里写任意触发器的 effect，`effect_state` 会告诉你这些触发器是否成立。mod 就是这样让你知道"这个旗标设置了吗？""玩家有这项科技吗？"，而你不用读任何内存。
 
 接口没有提供的东西（舰队、行星……），需要你自己带 SDK 去读引擎内存。这是允许的，宿主不会阻止；但这也意味着你的插件又和游戏版本绑在一起了。
 
+## 元素：给声明面板用的组件
+
+**mod 作者**在文本文件里声明面板（`interface/stl_gui/*.txt`，见 [mod-authors.zh-CN.md](mod-authors.zh-CN.md)）。除了宿主自己的元素（`text`、`value`、`gauge`、`button`……），你的插件还可以按名字注册自己的元素。声明里写 `ring = { resource = energy }`，就由注册了 `ring` 的插件来画：**组件库**就是这样做出来的，`examples/element/example_element.c` 是一个用纯 C 写的小例子。
+
+```c
+static void el_meter(const StlGuiCallbackCtx* c, const StlGuiNode* n, void* user) {
+    const char* key = c->node->value(n, "resource", "energy");     // 从声明里读参数
+    c->ui->text_colored(c->theme->text, c->node->text(n, "label", key));  // `text` = 本地化键，对玩家国家求值
+    // ... 用 c->ui 画，或者用你自己的 ImGui；排版用像素乘 c->ui_scale；颜色取自 c->theme
+}
+
+StlGuiElementDesc d = { sizeof(d) };
+d.name = "meter";  d.provider = "my-plugin";  d.draw = el_meter;
+int handle = api->register_element(&d);   // 名字为空、已被占用、或是宿主自己的元素时返回 0
+```
+
+| 节点访问函数（`ctx->node`） | |
+|---|---|
+| `key(n)`、`is_block(n)`、`self_value(n)` | 条目本身：`ring = { ... }` 里的 `ring`、它是不是块、`spacer = 6` 的值 |
+| `value(n, key, def)`、`number(n, key, def)` | 子项 `key = word` 的值 |
+| `text(n, key, def)` | 子项的值，作为要显示的文字：本地化键经游戏的本地化（所以 `[Root.x]` 有效），或者原样的文字。接下来的 15 次调用内有效 |
+| `child(n, key)`、`child_count(n)`、`child_at(n, i)` | 结构：`tab = { ... }` 条目、`content = { ... }` 块 |
+| `draw_block(block)`、`draw_row(block)`、`draw_node(n)` | 用宿主的渲染器画一个块里的条目（竖排或并排），或者画一个条目：**容器**（卡片、标签页、分栏）就是这样显示它的内容的，里面是宿主的元素还是别的插件的元素都一样 |
+
+规则：
+
+- 名字用 `lower_snake_case`。宿主自己的名字（`text separator spacer date value gauge stat badge button row`）不能占用；已经注册过的名字会被拒绝。
+- 你的回调在面板的窗口里、在主线程上、在声明所在的布局位置运行：像任何控件一样使用 ImGui 的光标（用 `Dummy` 占位，用 `get_cursor_screen_pos` 在那里画）。
+- 它和面板的回调受同样的保护：异常被捕获、ImGui 的栈被复原、**三次故障后停用**（面板在那个位置显示 `[name: disabled]`，其余部分继续工作）。
+- 你的插件没装时，mod 的声明在那里显示一条暗淡的 `[name: needs <插件 id>]`（来自文件的 `stl_gui_requires`），日志里写一行。请在你的文档里写明 mod 作者要填哪个插件 id。
+- 元素不是面板：它没有自己的窗口。需要窗口的组件（HUD、自己的标签栏）要注册面板，或者让声明写 `kind = hud`（见下）。
+
+### 主题
+
+`ctx->theme` 是所有组件都该用的配色（`accent`、`accent2`、`text`、`text_dim`、`good`、`bad`、`warn`、`panel`、`border`，都是 ImGui 的 `ImU32`），这样玩家的一次选择就能给它们全部换色。`api->theme_info(i, &t)` 列出主题，`api->set_theme(i)` 选一个（`config\stellaris_guiexpand.ini` 里的 `theme=` 是初始选择）。
+
+### 声明能向宿主要求什么
+
+除了元素，声明面板还可以是 **HUD**（`kind = hud`、`anchor`、`offset`、`size`：没有装饰、没有背景、贴在屏幕边缘的窗口），可以有 `hotkey`，也可以用 `open = no` 一开始就隐藏。这些你的插件什么都不用做，是给 mod 作者用的，见 [mod-authors.zh-CN.md](mod-authors.zh-CN.md)。
+
 ## 故障被隔离
 
-宿主保护游戏不被行为异常的面板拖垮。以下都在游戏里实测过：
+宿主保护游戏不被行为异常的面板或元素拖垮。以下都在游戏里实测过：
 
 | 你的回调…… | 宿主的做法 |
 |---|---|

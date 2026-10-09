@@ -22,7 +22,6 @@ creates no window or swap chain.
 | `src/host_api.cpp` | the panel registry, the C drawing table, `StlGui_GetApi`, dispatch with fault isolation |
 | `src/decl_panels.cpp` | mod discovery, the script-syntax parser, the renderer of declared panels |
 | `src/loc.cpp` | loc key to display text through the engine's localisation; texts with `[Root.xxx]` through the engine's scoped text processor |
-| `src/deck.cpp` | the reference skin (capsule and Command Deck); a consumer of the same data as any plugin |
 | `sdk/stellaris_sdk.hpp` | generated; every engine address and offset the host uses |
 
 ## Three hooks, and not the fourth
@@ -75,16 +74,24 @@ comparison of ImGui's window, group, colour, style-var and font stacks (extra en
 count of faults per panel (three disable it). `docs/developers.md` has the table. The wrapper function holds no C++ objects with destructors (SEH and C++ unwinding do not
 mix in one function).
 
+## Elements, the theme and HUDs
+
+Plugins register named elements (`register_element`). The declaration renderer hands every entry that is not one of its ten own to the registry (`DrawElement`), with the protection of a panel:
+SEH around the call, ImGui's stacks restored, the code address checked with `VirtualQuery`, three faults disable the element (the panel then shows `[name: disabled]`). An element reads its entry through
+opaque node handles (`StlGuiNodeApi`, over the parsed `SNode` tree); `draw_block` / `draw_row` / `draw_node` re-enter the renderer, so containers nest (depth-limited). A name nobody registered becomes a
+dim note and one log line, with the plugin ids from the file's `stl_gui_requires`.
+
+The player's **theme** (two accent colours of four palettes, and the constant text, good / bad / warn and panel colours) lives in the host and is handed to every callback, so that skins and components
+share it. `get_history` serves the per-game-day series the host keeps (resource stocks and nets, 160 days) and its own frame-time and tick-rate series.
+
+A declared panel with `kind = hud` is an undecorated, background-less window of a fixed size at a screen anchor (padding and border are pushed before the stack mark: they are the host's to pop); `hotkey`
+is polled once a frame with `GetAsyncKeyState` while the game window is the foreground window, and `open = no` starts a panel hidden.
+
 ## Declared panels
 
 At the first moment a game runs (and on `scan`), stellaris-guiexpand reads `dlc_load.json`, resolves each enabled `mod/*.mod` to its folder through `path=`, and parses
 `interface/stl_gui/*.txt` with a small Paradox-script parser. Each declared panel is registered like a plugin's, with a renderer that walks the parsed tree every frame.
 The only thing a declaration can do is show data and run a `button_effect`: there is no expression language.
-
-## The reference skin
-
-`deck.cpp` draws the status capsule and the Command Deck mostly with `ImDrawList` calls instead of ImGui's stock widgets, in a style far from the game's. It is an ordinary consumer of the same
-snapshot and script channel; `deck = 0` turns it off completely. It is the largest file, and a candidate to become a separate plugin one day.
 
 ## After a game patch
 

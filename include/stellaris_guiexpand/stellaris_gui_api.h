@@ -31,6 +31,21 @@ typedef const struct StlGuiApi* (*StlGui_GetApi_fn)(uint32_t requested_version);
 
 /* ---------------------------------------------------------------------------------------- what a draw callback receives */
 struct StlGuiUi;
+struct StlGuiNodeApi;
+
+/* The colours every component of a skin shares, so that one choice of the player changes them all (colours are 0xAABBGGRR, ImGui's ImU32). */
+typedef struct StlGuiTheme {
+    uint32_t size;
+    uint32_t index;        /* of this theme, 0 .. theme_count - 1 */
+    uint32_t theme_count;
+    uint32_t reserved0;
+    const char* name;      /* UTF-8, for a picker */
+    uint32_t accent, accent2; /* the two colours of the theme's gradient */
+    uint32_t text, text_dim;
+    uint32_t good, bad, warn;
+    uint32_t panel;        /* background of a panel or card, with its alpha */
+    uint32_t border;
+} StlGuiTheme;
 
 typedef struct StlGuiCallbackCtx {
     uint32_t size;
@@ -57,6 +72,16 @@ typedef struct StlGuiCallbackCtx {
     uint32_t imgui_sizeof_style;
     uint32_t imgui_sizeof_drawvert;
     uint32_t imgui_sizeof_drawidx;
+
+    /* Appended after the first release: check `size` before reading the members below. */
+    float ui_scale;     /* the host's layout scale (the screen's, times `fit`): multiply every pixel size you lay out with it */
+    float fit;          /* the part of it that fits the layout into a small window (0.55 .. 1); text drawn with a font size of your own is scaled by it */
+    float delta_time;   /* seconds of the last frame */
+    float time;         /* seconds since the start of the host's ImGui, for animations */
+    void* font_title;          /* more fonts of the host, ImFont*: titles */
+    void* font_numbers_large;  /* big numbers */
+    const struct StlGuiTheme* theme;     /* the player's current theme */
+    const struct StlGuiNodeApi* node;    /* the accessors of a declaration node; set in element callbacks */
 } StlGuiCallbackCtx;
 
 typedef void (*StlGuiDrawFn)(const StlGuiCallbackCtx* ctx, void* user);
@@ -95,7 +120,59 @@ typedef struct StlGuiSnapshot {
     int64_t tick;            /* snapshot counter, changes with every turn tick */
     char country_name[96];
     StlGuiResource resources[32];
+
+    /* Appended after the first release: check `size` before reading the members below (get_snapshot copies only what fits into the caller's `size`). */
+    double income[32];   /* per month, indexed like resources[] */
+    double expense[32];
+    uint32_t colonies, pops;
+    int32_t empire_size;
+    uint32_t day_index;  /* days since 2200.01.01 */
+    double military_power, tech_power, economy_power;
+    /* the strongest empire of the galaxy on each axis (refreshed once a game day): 100 % of a radar or a ring */
+    double colonies_max, pops_max, military_power_max, tech_power_max, economy_power_max;
 } StlGuiSnapshot;
+
+/* ---------------------------------------------------------------------------------------- elements (components that declarations can use)
+ * A mod declares a panel in interface/stl_gui/*.txt (docs/mod-authors.md). Besides the host's own elements (text, value, gauge, button ...), a plugin
+ * can register elements of its own by name; a declaration that says `ring = { resource = energy }` is then drawn by the plugin that registered `ring`.
+ * That is how a component library is built. The declaration is read through the node accessors below. */
+typedef struct StlGuiNode StlGuiNode; /* opaque: one entry of a declaration file, owned by the host, valid for the whole run of the game */
+
+typedef struct StlGuiNodeApi {
+    uint32_t size;
+    uint32_t reserved0;
+    /* the entry's own key (`ring` in `ring = { ... }`); "" for a nameless block */
+    const char* (*key)(const StlGuiNode* n);
+    /* 1 for `key = { ... }`, 0 for `key = value` */
+    int (*is_block)(const StlGuiNode* n);
+    /* the entry's own value (`6` in `spacer = 6`); "" for a block */
+    const char* (*self_value)(const StlGuiNode* n);
+    /* the value of the child `key = word` of a block (the first such child), or `def` when there is none or it is a block */
+    const char* (*value)(const StlGuiNode* n, const char* key, const char* def);
+    double (*number)(const StlGuiNode* n, const char* key, double def);
+    /* the first child named `key` (a block or a plain entry), or NULL */
+    const StlGuiNode* (*child)(const StlGuiNode* n, const char* key);
+    uint32_t (*child_count)(const StlGuiNode* n);
+    const StlGuiNode* (*child_at)(const StlGuiNode* n, uint32_t index);
+    /* a child's value as the text to show: a localisation key through the game's localisation (with [Root.xxx] evaluated), or the text as written */
+    const char* (*text)(const StlGuiNode* n, const char* key, const char* def); /* valid until the next call of text() */
+    /* draw the children of a block with the host's renderer (vertically, or side by side with draw_row): how a container (card, tabs) shows its content.
+     * `draw_node` draws one entry as an element (a built-in one, or another registered element). */
+    void (*draw_block)(const StlGuiNode* block);
+    void (*draw_row)(const StlGuiNode* block);
+    void (*draw_node)(const StlGuiNode* n);
+} StlGuiNodeApi;
+
+typedef void (*StlGuiElementFn)(const StlGuiCallbackCtx* ctx, const StlGuiNode* node, void* user);
+
+typedef struct StlGuiElementDesc {
+    uint32_t size;
+    uint32_t flags;        /* reserved, 0 */
+    const char* name;      /* the key in declaration files: lower_snake_case, not one of the host's own elements */
+    const char* provider;  /* the plugin id, for messages ("element ring is missing: install stellaris-argon-ui") */
+    StlGuiElementFn draw;
+    void* user;
+} StlGuiElementDesc;
 
 /* ---------------------------------------------------------------------------------------- the host's function table */
 typedef struct StlGuiApi {
@@ -133,6 +210,25 @@ typedef struct StlGuiApi {
      * The value is taken between turn ticks and refreshed when the game state has changed, so it is cheap to call every frame. A text containing a
      * space is returned as written. Only valid inside a draw callback. */
     int (*localize)(const char* key, char* out, uint32_t cap);
+
+    /* A series of the last game days (about 160, oldest first), for charts. `series` is a resource key (its stock), "<resource>.net" (its monthly net),
+     * "@frame_ms" (the host's frame time, sampled each frame) or "@tick_rate" (turn ticks per second). Copies at most `cap` of the newest samples and
+     * returns how many; 0 for an unknown series. */
+    int (*get_history)(const char* series, float* out, uint32_t cap);
+
+    /* Elements (see above). register_element returns a handle > 0, or 0 when the name is empty, taken, or one of the host's own. A registered
+     * element's callback runs with the same protection as a panel's (exceptions caught, ImGui stacks restored, disabled after three faults). */
+    int (*register_element)(const StlGuiElementDesc* desc);
+    void (*unregister_element)(int handle);
+
+    /* Show or hide a panel of any source by its id (a declared panel's id is "<mod name>:<id>"): op 0 hide, 1 show, 2 toggle, -1 only ask.
+     * Returns the panel's visibility afterwards (1 / 0), or -1 when there is no such panel. */
+    int (*panel_visibility)(const char* panel_id, int op);
+
+    /* The player's theme. theme_info fills *out (size set by the caller) for theme `index`, returns 0 when there is no such theme; set_theme returns 1 when it
+     * changed the current one. The current theme is also in the callback context. */
+    int (*theme_info)(int index, StlGuiTheme* out);
+    int (*set_theme)(int index);
 } StlGuiApi;
 
 /* ---------------------------------------------------------------------------------------- drawing without ImGui (for plugins in any language)
