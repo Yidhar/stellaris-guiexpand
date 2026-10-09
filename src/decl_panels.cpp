@@ -527,7 +527,7 @@ std::string ModGlyphText() {
         } while (FindNextFileW(h, &fd));
         FindClose(h);
     }
-    // ... and the resources' own names (not only concepts: 泽珞 is `sr_zro` in main_2_l_simp_chinese.yml), in the language the player plays in
+    // ... and the resources' own names (not only concepts: the name of Zro is `sr_zro` in main_2_l_simp_chinese.yml), in the language the player plays in
     size_t named = 0;
     if (const std::wstring lang = PlayerLanguageDir(); !lang.empty()) {
         const size_t before = cps.size();
