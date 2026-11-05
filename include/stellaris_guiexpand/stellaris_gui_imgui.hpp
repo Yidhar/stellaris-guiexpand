@@ -1,5 +1,5 @@
 // For a plugin that compiles its own copy of Dear ImGui and wants to use it inside a host draw callback.
-// The copy has to be the same ImGui version as the engine's (1.85 as of Stellaris 4.5.2) with the default imconfig.h; the host says which in
+// The copy has to be the same ImGui version as the engine's (1.85 as of Stellaris 4.5.3) with the default imconfig.h; the host says which in
 // StlGuiCallbackCtx::imgui_version_num. Dear ImGui keeps its state in globals and its heap per module, so each module that calls it must be
 // pointed at the shared context and the shared allocators ("Context and Memory Allocators" in imgui.cpp).
 #pragma once

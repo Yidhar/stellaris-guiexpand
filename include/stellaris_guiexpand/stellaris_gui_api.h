@@ -50,7 +50,7 @@ typedef struct StlGuiTheme {
 typedef struct StlGuiCallbackCtx {
     uint32_t size;
     uint32_t api_version;
-    /* The engine's Dear ImGui (ImGui 1.85 as of Stellaris 4.5.2). A plugin that compiles its own copy of ImGui binds it with these two calls
+    /* The engine's Dear ImGui (ImGui 1.85 as of Stellaris 4.5.3). A plugin that compiles its own copy of ImGui binds it with these two calls
      * (stellaris_gui_imgui.hpp does it): ImGui::SetAllocatorFunctions(alloc, free, user); ImGui::SetCurrentContext(imgui_context).
      * The pointer changes when the engine restarts its ImGui, so it is passed on every call. */
     void* imgui_context;

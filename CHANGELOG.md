@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 (unreleased)
+
+Adapted to **Stellaris 4.5.3** (`stellaris.exe` PE timestamp `0x6AE49C1B`). The engine's addresses come from the regenerated SDK subset (`sdk/stellaris_sdk.hpp`); the layout constants of the
+engine's Dear ImGui (1.85) did not change. No change to the interface or to the declaration syntax. This build only works with 4.5.3: 0.1.0 is the one for 4.5.2.
+
 ## 0.1.0 (2026-10-09)
 
 The Command Deck (a status capsule and a five-page window) that the first prototype drew itself is **not part of the host any more**: it is rebuilt from declarations with the

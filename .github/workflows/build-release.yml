@@ -87,7 +87,7 @@ jobs:
           Copy-Item docs/images/scoped_panel.png "$out/docs/images/"
           Copy-Item README.md, README.zh-CN.md, LICENSE $out/
           @(
-            "The interface in include/stellaris_guiexpand is for the host built for the stellaris.exe whose PE timestamp is $ts ($built), Stellaris 4.5.2 (Windows x64).",
+            "The interface in include/stellaris_guiexpand is for the host built for the stellaris.exe whose PE timestamp is $ts ($built), Stellaris 4.5.3 (Windows x64).",
             "A plugin that only uses this interface does not depend on the game build: the host is updated after a game patch, the plugin is not rebuilt."
           ) | Set-Content -Encoding utf8 "$out/GAME_BUILD.txt"
           Compress-Archive -Path $out -DestinationPath "package/$sdk.zip"
@@ -114,7 +114,7 @@ jobs:
           generate_release_notes: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           body: |
-            Built for **Stellaris 4.5.2** (Windows x64), `stellaris.exe` PE timestamp `${{ steps.package.outputs.exe_timestamp }}` (${{ steps.package.outputs.exe_built }}).
+            Built for **Stellaris 4.5.3** (Windows x64), `stellaris.exe` PE timestamp `${{ steps.package.outputs.exe_timestamp }}` (${{ steps.package.outputs.exe_built }}).
             The DLL only works with that exact game build; the launcher checks this from the manifest.
 
             - `stellaris-guiexpand-v*.zip`: the plugin, laid out as its plugin folder (`stl-plugin.json`, `stellaris_guiexpand.dll`, `defaults\`). Unpack it into `Documents\Paradox Interactive\Stellaris\plugins\stellaris-guiexpand\`, or install the unpacked folder with the Stellaris launcher. Start the game with the launcher: that is what loads the plugin.

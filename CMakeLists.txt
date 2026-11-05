@@ -19,7 +19,7 @@ FetchContent_Declare(
     GIT_REPOSITORY https://github.com/TsudaKageyu/minhook.git
     GIT_TAG        v1.3.4
 )
-# Dear ImGui 1.85: the version compiled into stellaris.exe (4.5.2). Plugins that draw into the engine's context have to be the same version with the
+# Dear ImGui 1.85: the version compiled into stellaris.exe (4.5.2 and 4.5.3). Plugins that draw into the engine's context have to be the same version with the
 # default imconfig.h; src/imgui_host.cpp has static_asserts against the layout constants of the SDK.
 # (offline or a local clone: -DFETCHCONTENT_SOURCE_DIR_IMGUI=<path to an ImGui v1.85 checkout>)
 FetchContent_Declare(

@@ -2,7 +2,7 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-A shared GUI host for **Stellaris 4.5.2** (Windows x64, the `-dx11` build). It starts the Dear ImGui that is already compiled into `stellaris.exe` and
+A shared GUI host for **Stellaris 4.5.3** (Windows x64, the `-dx11` build). It starts the Dear ImGui that is already compiled into `stellaris.exe` and
 draws panels inside the game, so that:
 
 - **plugin developers** can show a panel with a small C interface (`include/stellaris_guiexpand/stellaris_gui_api.h`), in C, C++ with or without their own
