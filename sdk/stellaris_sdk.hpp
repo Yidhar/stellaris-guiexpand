@@ -7,8 +7,8 @@
 #include <cstdint>
 
 namespace sdk {
-inline constexpr uint32_t kExeTimestamp = 0x6AE49C1B;  // PE TimeDateStamp this SDK was dumped from
-inline constexpr uintptr_t kRvaEngineAlloc = 0x2026338;
+inline constexpr uint32_t kExeTimestamp = 0x6AF23393;  // PE TimeDateStamp this SDK was dumped from
+inline constexpr uintptr_t kRvaEngineAlloc = 0x2028B18;
 
 struct CmdSpec {
     const char* name;
@@ -19,19 +19,19 @@ struct CmdSpec {
 };
 
 namespace glob {
-    inline constexpr uintptr_t CConsole_pInstance = 0x315E1E8;  // CConsole::_pInstance  score=anchor live=anchor
-    inline constexpr uintptr_t CStrategicResourceDatabase_pInstance = 0x3157B88;  // CStrategicResourceDatabase::_pInstance  score=anchor live=anchor
-    inline constexpr uintptr_t GImAllocatorAllocFunc = 0x2802320;  // GImAllocatorAllocFunc  score=anchor live=anchor
-    inline constexpr uintptr_t GImAllocatorFreeFunc = 0x2802328;  // GImAllocatorFreeFunc  score=anchor live=anchor
-    inline constexpr uintptr_t GImAllocatorUserData = 0x28E7D68;  // GImAllocatorUserData  score=anchor live=anchor
-    inline constexpr uintptr_t GImGui = 0x28E7D58;  // GImGui  score=anchor live=anchor
-    inline constexpr uintptr_t TGameDatabase_CButtonEffectDatabase_pInstance = 0x31175E8;  // TGameDatabase<CButtonEffectDatabase>::_pInstance  score=anchor live=anchor
-    inline constexpr uintptr_t g_CurrentGameState = 0x3119740;  // g_CurrentGameState  score=0.781 live=not-checked
-    inline constexpr uintptr_t g_CurrentInGameIdler = 0x3119EB0;  // g_CurrentInGameIdler  score=0.81 live=not-checked
+    inline constexpr uintptr_t CConsole_pInstance = 0x3160168;  // CConsole::_pInstance  score=anchor live=anchor
+    inline constexpr uintptr_t CStrategicResourceDatabase_pInstance = 0x3159BF0;  // CStrategicResourceDatabase::_pInstance  score=anchor live=anchor
+    inline constexpr uintptr_t GImAllocatorAllocFunc = 0x2804320;  // GImAllocatorAllocFunc  score=anchor live=anchor
+    inline constexpr uintptr_t GImAllocatorFreeFunc = 0x2804328;  // GImAllocatorFreeFunc  score=anchor live=anchor
+    inline constexpr uintptr_t GImAllocatorUserData = 0x28E9D68;  // GImAllocatorUserData  score=anchor live=anchor
+    inline constexpr uintptr_t GImGui = 0x28E9D58;  // GImGui  score=anchor live=anchor
+    inline constexpr uintptr_t TGameDatabase_CButtonEffectDatabase_pInstance = 0x31195D0;  // TGameDatabase<CButtonEffectDatabase>::_pInstance  score=anchor live=anchor
+    inline constexpr uintptr_t g_CurrentGameState = 0x311B708;  // g_CurrentGameState  score=0.771 live=not-checked
+    inline constexpr uintptr_t g_CurrentInGameIdler = 0x311BF10;  // g_CurrentInGameIdler  score=0.791 live=not-checked
 }  // namespace glob
 
 namespace db {
-    inline constexpr uintptr_t CCountry = 0x3119CC0;
+    inline constexpr uintptr_t CCountry = 0x311BD38;
 }  // namespace db
 
 namespace rt {
@@ -46,26 +46,26 @@ namespace rt {
 }  // namespace rt
 
 namespace fn {
-    inline constexpr uintptr_t CConsole_RunCommandNow = 0x1B17CE0;
-    inline constexpr uintptr_t CGameState_HandleTurnTick = 0x2518C0;
-    inline constexpr uintptr_t CGameText_ProcessWithScope = 0x5EA4C0;
-    inline constexpr uintptr_t CInGameIdler_SetGameSpeed = 0x9368E0;
-    inline constexpr uintptr_t CInGameIdler_SetPaused = 0x936FD0;
-    inline constexpr uintptr_t CPersistentName_BuildString = 0x33C3A0;
-    inline constexpr uintptr_t CStrategicResource_GetMaximumForCountry = 0x3AEBD0;
-    inline constexpr uintptr_t CString_Free = 0x15BE00;
-    inline constexpr uintptr_t GetPlayerCountry = 0x14B16F0;
-    inline constexpr uintptr_t ImGui_NewFrame = 0x1EA1D10;
-    inline constexpr uintptr_t NImGuiWrapper_ImGuiInit = 0x1B15C50;
-    inline constexpr uintptr_t PdxLocalize = 0x16D4B0;
-    inline constexpr uintptr_t PostCommand = 0x5F9A10;
+    inline constexpr uintptr_t CConsole_RunCommandNow = 0x1B19AF0;
+    inline constexpr uintptr_t CGameState_HandleTurnTick = 0x251780;
+    inline constexpr uintptr_t CGameText_ProcessWithScope = 0x5ED640;
+    inline constexpr uintptr_t CInGameIdler_SetGameSpeed = 0x938230;
+    inline constexpr uintptr_t CInGameIdler_SetPaused = 0x938920;
+    inline constexpr uintptr_t CPersistentName_BuildString = 0x33F600;
+    inline constexpr uintptr_t CStrategicResource_GetMaximumForCountry = 0x3B1E30;
+    inline constexpr uintptr_t CString_Free = 0x15BDE0;
+    inline constexpr uintptr_t GetPlayerCountry = 0x14B30B0;
+    inline constexpr uintptr_t ImGui_NewFrame = 0x1EA44F0;
+    inline constexpr uintptr_t NImGuiWrapper_ImGuiInit = 0x1B17A60;
+    inline constexpr uintptr_t PdxLocalize = 0x16D490;
+    inline constexpr uintptr_t PostCommand = 0x5FCB90;
 }  // namespace fn
 
 namespace cmd {
 namespace execute_button_effect {  // CExecuteButtonEffectCommand (token-name)
     inline constexpr uint32_t kToken = 0x36C4;
-    inline constexpr uintptr_t kVtableRva = 0x23C2EC8;
-    inline constexpr uintptr_t kFactoryRva = 0xAA07D0;
+    inline constexpr uintptr_t kVtableRva = 0x23C5180;
+    inline constexpr uintptr_t kFactoryRva = 0xAA18D0;
     inline constexpr std::size_t kSize = 0x198;
     inline constexpr CmdSpec kSpec{"execute_button_effect", kToken, kVtableRva, kFactoryRva, kSize};
     inline constexpr std::ptrdiff_t scope = 0x20;  // tok 0x2c8d persistent
