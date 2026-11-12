@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.1.1 (unreleased)
+## 0.1.2 (unreleased)
+
+Adapted to **Stellaris 4.5.4** (`stellaris.exe` PE timestamp `0x6AF23393`). Same as 0.1.1 was for 4.5.3: the engine's addresses come from the regenerated SDK subset (`sdk/stellaris_sdk.hpp`), the same
+41 symbols with new RVAs and no changed field offset, and the layout constants of the engine's Dear ImGui (1.85) did not change. No change to the interface or to the declaration syntax. This build only
+works with 4.5.4: 0.1.1 is the one for 4.5.3, 0.1.0 for 4.5.2.
+
+## 0.1.1 (2026-11-05)
 
 Adapted to **Stellaris 4.5.3** (`stellaris.exe` PE timestamp `0x6AE49C1B`). The engine's addresses come from the regenerated SDK subset (`sdk/stellaris_sdk.hpp`); the layout constants of the
 engine's Dear ImGui (1.85) did not change. No change to the interface or to the declaration syntax. This build only works with 4.5.3: 0.1.0 is the one for 4.5.2.
